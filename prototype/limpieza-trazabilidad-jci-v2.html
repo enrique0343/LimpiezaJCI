@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Limpieza con Trazabilidad JCI · Avante · v2</title>
+<style>
+  :root{
+    --negro:#1A1A1A; --gris:#4A4A4A; --gris-med:#6B7280; --gris-cl:#E5E5E5;
+    --gris-bg:#FAFAFA; --gris-bg2:#F4F4F4; --blanco:#FFFFFF;
+    --azul:#1A2B4A; --turq:#5B9BA8; --violeta:#7A6B8E;
+    --verde:#1F5740; --ambar:#B8862E; --rojo:#A0322D; --rojo2:#B8443A;
+    --font:'Century Gothic','CenturyGothic','AppleGothic','Questrial',sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--font); color:var(--negro); background:var(--gris-bg2); font-size:15px; line-height:1.35;-webkit-font-smoothing:antialiased;}
+  .shell{max-width:480px; margin:0 auto; min-height:100vh; background:var(--gris-bg); display:flex; flex-direction:column; position:relative;}
+
+  /* Top bar */
+  .topbar{background:var(--negro); color:var(--blanco); padding:12px 16px; display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:30;}
+  .topbar .ttl{font-size:13px; font-weight:700; line-height:1.2;}
+  .topbar .sub{font-size:9px; color:#cfcfcf; letter-spacing:.08em; text-transform:uppercase; margin-top:2px;}
+  .topbar .code{margin-left:auto; font-size:9px; color:#bdbdbd; letter-spacing:.07em; text-align:right; line-height:1.4;}
+  .iconbtn{background:none; border:none; color:inherit; padding:4px; cursor:pointer; display:flex; border-radius:4px;}
+  .iconbtn:active{background:rgba(255,255,255,.12);}
+
+  /* User strip */
+  .userstrip{background:var(--gris-bg2); border-bottom:1px solid var(--gris-cl); padding:8px 16px; font-size:11px; color:var(--gris); display:flex; align-items:center; gap:8px;}
+  .userstrip b{color:var(--negro); font-weight:700;}
+  .userstrip .role{font-size:9px; text-transform:uppercase; letter-spacing:.07em; padding:2px 6px; background:var(--negro); color:#fff; border-radius:3px;}
+  .userstrip .switch{margin-left:auto; color:var(--azul); cursor:pointer; text-decoration:underline; text-decoration-color:var(--gris-cl);}
+
+  /* Content */
+  .content{flex:1; overflow-y:auto; padding:16px 16px 130px;}
+  .section-label{font-size:11px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:var(--gris); margin:0 0 10px;}
+  .intro{color:var(--gris-med); font-size:12.5px; margin:0 0 18px; line-height:1.5;}
+  .intro b{color:var(--gris); font-weight:700;}
+  .ribbon{font-size:10px; color:var(--gris-med); text-align:center; padding:14px 4px 0; line-height:1.55;}
+  .ribbon b{color:var(--gris); font-weight:700;}
+
+  /* Buttons */
+  .btn{padding:13px; border-radius:4px; font-family:var(--font); font-size:14px; font-weight:700; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:opacity .12s;}
+  .btn svg{width:16px; height:16px;}
+  .btn-primary{background:var(--negro); color:var(--blanco);}
+  .btn-primary:disabled{background:var(--gris-cl); color:var(--gris-med); cursor:not-allowed;}
+  .btn-ghost{background:none; border:1px solid var(--gris-cl); color:var(--gris);}
+  .btn-success{background:var(--verde); color:#fff;}
+  .btn-warn{background:var(--rojo); color:#fff;}
+  .btn:active:not(:disabled){opacity:.85;}
+  .actionbar{position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:480px; background:var(--blanco); border-top:1px solid var(--gris-cl); padding:12px 16px; display:flex; gap:8px; align-items:center; z-index:25;}
+  .actionbar .btn{flex:1;}
+  .actionbar .btn-ghost{flex:0 0 auto; padding:13px 14px;}
+
+  /* Login */
+  .userbtn{background:var(--blanco); border:1px solid var(--gris-cl); border-radius:4px; padding:14px; margin-bottom:10px; cursor:pointer; display:flex; align-items:center; gap:12px; width:100%; text-align:left;}
+  .userbtn:active{transform:scale(.99);}
+  .avatar{width:38px; height:38px; border-radius:50%; background:var(--gris-bg2); display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--negro); font-size:14px; border:1px solid var(--gris-cl);}
+  .uname{font-size:14px; font-weight:700;}
+  .urole{font-size:10.5px; color:var(--gris-med); text-transform:uppercase; letter-spacing:.06em; margin-top:2px;}
+  .upill{margin-left:auto; font-size:10px; color:var(--gris); border:1px solid var(--gris-cl); border-radius:3px; padding:3px 7px;}
+
+  /* State pipeline */
+  .pipeline{background:var(--blanco); border:1px solid var(--gris-cl); border-radius:4px; padding:12px 12px 14px; margin-bottom:16px;}
+  .pipeline .ph{font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:var(--gris-med); margin-bottom:10px;}
+  .pipesteps{display:flex; gap:6px; overflow-x:auto; scrollbar-width:none;}
+  .pipesteps::-webkit-scrollbar{display:none;}
+  .pipestep{flex:1 0 auto; min-width:80px; padding:8px 10px; border-radius:4px; border:1px solid var(--gris-cl); background:var(--gris-bg); text-align:center;}
+  .pipestep .pc{font-size:18px; font-weight:700; line-height:1; color:var(--negro);}
+  .pipestep .pl{font-size:9.5px; color:var(--gris-med); margin-top:5px; text-transform:uppercase; letter-spacing:.04em;}
+
+  /* Room cards */
+  .room-grid{display:flex; flex-direction:column; gap:10px;}
+  .room{background:var(--blanco); border:1px solid var(--gris-cl); border-radius:4px; padding:13px 14px; cursor:pointer; transition:transform .05s;}
+  .room:active{transform:scale(.995);}
+  .room-h{display:flex; align-items:baseline; gap:10px;}
+  .room-num{font-size:20px; font-weight:700; color:var(--negro);}
+  .room-type{font-size:10.5px; color:var(--gris-med); text-transform:uppercase; letter-spacing:.06em;}
+  .room-floor{margin-left:auto; font-size:10.5px; color:var(--gris-med);}
+  .room-meta{font-size:11.5px; color:var(--gris); margin-top:6px;}
+  .room-meta b{color:var(--negro); font-weight:700;}
+  .room-foot{margin-top:10px; display:flex; align-items:center; gap:8px;}
+  .statepill{font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:4px 8px; border-radius:3px; display:inline-flex; align-items:center; gap:5px;}
+  .statepill svg{width:11px; height:11px;}
+  .sp-pend{background:var(--gris-bg2); color:var(--gris);}
+  .sp-exec{background:var(--azul); color:#fff;}
+  .sp-verif{background:var(--turq); color:#fff;}
+  .sp-hall{background:var(--ambar); color:#fff;}
+  .sp-rel{background:var(--verde); color:#fff;}
+  .room-cta{margin-left:auto; font-size:11px; color:var(--azul); font-weight:700; display:flex; align-items:center; gap:4px;}
+  .room-cta svg{width:13px; height:13px;}
+
+  /* Card generic */
+  .card{background:var(--blanco); border:1px solid var(--gris-cl); border-radius:4px; padding:14px; margin-bottom:12px;}
+  .card-t{font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--gris); margin:0 0 10px; display:flex; align-items:center; gap:7px;}
+  .card-t svg{width:14px; height:14px;}
+
+  /* QR overlay */
+  .qrwrap{padding:30px 24px;}
+  .qrframe{aspect-ratio:1; background:#000; border-radius:8px; position:relative; max-width:280px; margin:0 auto 22px; overflow:hidden;}
+  .qrframe::before, .qrframe::after, .qrframe i, .qrframe i::before{content:""; position:absolute; width:38px; height:38px; border:3px solid var(--verde);}
+  .qrframe::before{top:12px; left:12px; border-right:none; border-bottom:none;}
+  .qrframe::after{top:12px; right:12px; border-left:none; border-bottom:none;}
+  .qrframe i{bottom:12px; left:12px; border-right:none; border-top:none;}
+  .qrframe i::before{bottom:-3px; right:-29px; left:auto; top:auto; border-left:none; border-top:none; border-right:3px solid var(--verde); border-bottom:3px solid var(--verde); display:block; position:relative;}
+  .qrframe .scanline{position:absolute; left:8%; right:8%; top:50%; height:2px; background:var(--verde); opacity:.7; animation:scan 1.6s ease-in-out infinite;}
+  @keyframes scan{0%,100%{top:18%;}50%{top:82%;}}
+  .qrtxt{text-align:center; color:var(--gris); font-size:13px;}
+  .qrtxt b{color:var(--negro);}
+
+  /* Protocol cards */
+  .protocard{background:var(--blanco); border:1.5px solid var(--gris-cl); border-radius:4px; padding:13px 14px; margin-bottom:10px; cursor:pointer;}
+  .protocard.sel{border-color:var(--negro); background:var(--gris-bg2);}
+  .protocard-h{display:flex; align-items:center; gap:8px;}
+  .protocard-h svg{width:18px; height:18px; color:var(--negro);}
+  .protoname{font-size:14px; font-weight:700;}
+  .protocode{margin-left:auto; font-size:10px; color:var(--gris-med); font-weight:400;}
+  .protodesc{font-size:11.5px; color:var(--gris-med); margin-top:6px; line-height:1.5;}
+  .protometa{font-size:10px; color:var(--gris-med); margin-top:8px; display:flex; gap:12px; flex-wrap:wrap;}
+  .protometa b{color:var(--gris); font-weight:700;}
+
+  /* Insumos */
+  .insumo{display:flex; align-items:center; gap:11px; padding:11px 12px; border:1px solid var(--gris-cl); border-radius:4px; margin-bottom:8px; cursor:pointer; background:var(--blanco);}
+  .insumo.sel{border-color:var(--negro); background:var(--gris-bg2);}
+  .insumo .chk{width:18px; height:18px; border:1.5px solid var(--gris-cl); border-radius:3px; flex:0 0 auto; display:flex; align-items:center; justify-content:center;}
+  .insumo.sel .chk{background:var(--negro); border-color:var(--negro);}
+  .insumo.sel .chk svg{width:12px; height:12px; color:#fff;}
+  .insumo .iname{font-size:13px; font-weight:700;}
+  .insumo .imeta{font-size:10.5px; color:var(--gris-med); margin-top:2px;}
+  .insumo .imeta code{font-family:'SF Mono','Monaco',monospace; font-size:10px; color:var(--gris); background:var(--gris-bg2); padding:1px 5px; border-radius:2px;}
+
+  /* Timer */
+  .timer-strip{background:var(--negro); color:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; position:sticky; top:55px; z-index:20;}
+  .timer-strip .clk{font-family:'SF Mono','Monaco',monospace; font-size:18px; font-weight:700; letter-spacing:.02em;}
+  .timer-strip .tl{font-size:9.5px; color:#bbb; text-transform:uppercase; letter-spacing:.07em;}
+  .timer-strip .pntinfo{margin-left:auto; text-align:right; font-size:9.5px; color:#bbb; line-height:1.4;}
+  .timer-strip .pntinfo b{color:#fff; font-weight:700;}
+
+  /* Steps */
+  .stepblk{background:var(--blanco); border:1px solid var(--gris-cl); border-radius:4px; padding:12px 13px; margin-bottom:8px; transition:border-color .12s;}
+  .stepblk.done{border-color:var(--verde); background:#f4faf7;}
+  .stepblk-h{display:flex; align-items:center; gap:10px;}
+  .stepnum{width:24px; height:24px; border-radius:50%; border:1.5px solid var(--gris-cl); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--gris-med); flex:0 0 auto;}
+  .stepblk.done .stepnum{background:var(--verde); border-color:var(--verde); color:#fff;}
+  .stepblk.done .stepnum svg{width:13px; height:13px;}
+  .stepblk.active .stepnum{border-color:var(--negro); background:var(--negro); color:#fff;}
+  .steplabel{flex:1; font-size:13.5px; line-height:1.4;}
+  .stepblk.done .steplabel{color:var(--gris);}
+  .steptime{font-size:10px; color:var(--gris-med); margin-top:4px; padding-left:34px; font-family:'SF Mono','Monaco',monospace;}
+  .stepacts{display:flex; gap:6px; margin-top:10px; padding-left:34px;}
+  .stepbtn{padding:8px 14px; font-size:12px; font-weight:700; border-radius:4px; border:1.5px solid var(--gris-cl); background:#fff; color:var(--gris); cursor:pointer;}
+  .stepbtn:active{transform:scale(.97);}
+  .stepbtn.confirm{border-color:var(--verde); color:var(--verde);}
+  .stepbtn.confirm:active{background:var(--verde); color:#fff;}
+  .stepbtn.incident{border-color:var(--ambar); color:var(--ambar);}
+
+  /* Photos */
+  .photogrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
+  .photoslot{aspect-ratio:1; border:2px dashed var(--gris-cl); border-radius:4px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--gris-med); cursor:pointer; position:relative; overflow:hidden; background:var(--gris-bg2);}
+  .photoslot.filled{border-style:solid; border-color:var(--verde);}
+  .photoslot svg{width:24px; height:24px; margin-bottom:6px;}
+  .photoslot .pname{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;}
+  .photoslot.filled .pname{position:absolute; bottom:6px; left:6px; right:6px; background:rgba(0,0,0,.7); color:#fff; padding:3px 6px; border-radius:3px; text-align:center;}
+  .photoslot img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+  .photoslot input{display:none;}
+
+  /* Verification */
+  .vcheck{background:var(--blanco); border:1px solid var(--gris-cl); border-radius:4px; padding:12px 13px; margin-bottom:8px;}
+  .vcheck-top{display:flex; align-items:flex-start; gap:10px;}
+  .vlabel{flex:1; font-size:13px; line-height:1.4;}
+  .vbadge{flex:0 0 auto; font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--gris); border:1px solid var(--gris-cl); border-radius:3px; padding:2px 6px;}
+  .vopts{display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:10px;}
+  .vopt{display:flex; align-items:center; justify-content:center; gap:5px; padding:9px 2px; border-radius:4px; font-size:12px; font-weight:700; cursor:pointer; border:1.5px solid var(--gris-cl); background:#fff; color:var(--gris-med);}
+  .vopt:active{transform:scale(.97);}
+  .vopt svg{width:14px; height:14px;}
+  .vopt.c{color:var(--verde); border-color:var(--verde);}
+  .vopt.c.sel{background:var(--verde); color:#fff;}
+  .vopt.n{color:var(--rojo); border-color:var(--rojo);}
+  .vopt.n.sel{background:var(--rojo); color:#fff;}
+  .vopt.na{color:var(--gris-med);}
+  .vopt.na.sel{background:var(--gris-med); color:#fff;}
+  .vdetail{margin-top:10px; padding-top:10px; border-top:1px dashed var(--gris-cl);}
+  .vdl{font-size:10px; font-weight:500; letter-spacing:.07em; text-transform:uppercase; color:var(--gris); margin-bottom:6px;}
+  textarea{width:100%; border:1px solid var(--gris-cl); border-radius:4px; padding:8px 10px; font-family:var(--font); font-size:13px; color:var(--negro); resize:vertical; min-height:48px; outline:none;}
+  textarea:focus{border-color:var(--gris);}
+
+  /* Exec summary (read-only block for supervisor) */
+  .execsum{background:var(--gris-bg2); border:1px solid var(--gris-cl); border-radius:4px; padding:12px 13px; margin-bottom:14px;}
+  .execsum .esh{font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--gris-med); margin-bottom:8px; display:flex; align-items:center; gap:6px;}
+  .execsum .esh svg{width:13px; height:13px;}
+  .esline{display:flex; align-items:baseline; gap:8px; font-size:12.5px; margin-bottom:4px;}
+  .esline b{color:var(--negro); font-weight:700; min-width:80px;}
+  .esline span{color:var(--gris);}
+  .esphotos{display:flex; gap:6px; margin-top:8px; overflow-x:auto;}
+  .esphoto{flex:0 0 auto; width:60px; height:60px; border-radius:4px; background:#000; border:1px solid var(--gris-cl); overflow:hidden;}
+  .esphoto img{width:100%; height:100%; object-fit:cover;}
+
+  /* Traceability */
+  .trace-item{display:flex; gap:12px; padding:10px 0; border-bottom:1px solid var(--gris-cl);}
+  .trace-item:last-child{border-bottom:none;}
+  .trace-tline{flex:0 0 auto; width:18px; display:flex; flex-direction:column; align-items:center;}
+  .trace-dot{width:10px; height:10px; border-radius:50%; background:var(--negro); margin-top:4px;}
+  .trace-bar{width:1.5px; background:var(--gris-cl); flex:1; margin-top:4px;}
+  .trace-c{flex:1;}
+  .trace-ts{font-size:10px; color:var(--gris-med); font-family:'SF Mono','Monaco',monospace;}
+  .trace-ev{font-size:13px; font-weight:700; margin-top:2px;}
+  .trace-d{font-size:12px; color:var(--gris); margin-top:2px;}
+  .trace-actor{font-size:10.5px; color:var(--gris-med); margin-top:2px;}
+
+  /* KPI / summary */
+  .kpi-row{display:flex; gap:10px; margin-bottom:14px;}
+  .kpi{flex:1; background:var(--blanco); border:1px solid var(--gris-cl); border-radius:4px; padding:12px 10px; text-align:center;}
+  .kpi .big{font-size:26px; font-weight:700; line-height:1;}
+  .kpi .lbl{font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:var(--gris-med); margin-top:5px;}
+  .confbar{background:var(--blanco); border:1px solid var(--gris-cl); border-radius:4px; padding:14px; margin-bottom:14px;}
+  .confbar .cl{font-size:10.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--gris-med);}
+  .confbar .pct{font-size:34px; font-weight:700; line-height:1; margin-top:6px;}
+  .confbar .pct small{font-size:15px; color:var(--gris-med);}
+  .barwrap{height:7px; background:var(--gris-cl); border-radius:4px; margin-top:10px; overflow:hidden; display:flex;}
+  .barwrap i{height:100%;}
+
+  /* Modal */
+  .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:60; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .modal{background:#fff; border-radius:6px; max-width:440px; width:100%; max-height:90vh; overflow-y:auto;}
+  .modal-h{padding:16px 18px; border-bottom:1px solid var(--gris-cl); display:flex; align-items:center; gap:10px;}
+  .modal-h .t{font-size:14px; font-weight:700;}
+  .modal-h .x{margin-left:auto; cursor:pointer; padding:4px; display:flex;}
+  .modal-b{padding:16px 18px;}
+
+  /* Toast */
+  .toast{position:fixed; bottom:88px; left:50%; transform:translateX(-50%); background:var(--negro); color:#fff; padding:11px 16px; border-radius:4px; font-size:12.5px; opacity:0; pointer-events:none; transition:opacity .25s; z-index:50; max-width:440px;}
+  .toast.show{opacity:.96;}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar" id="topbar">
+    <button class="iconbtn" id="backBtn" style="display:none;" onclick="back()" aria-label="Atrás">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div>
+      <div class="ttl" id="barTitle">Limpieza con Trazabilidad</div>
+      <div class="sub" id="barSub">JCI PCI.04.00 · 8ª edición</div>
+    </div>
+    <div class="code">GO-VIS-005-2026 <span style="opacity:.6">(prov.)</span><br>v0.2 · Prototipo</div>
+  </div>
+  <div class="userstrip" id="userstrip" style="display:none;"></div>
+  <div class="content" id="content"></div>
+</div>
+<div class="actionbar" id="actionbar" style="display:none;"></div>
+<div class="toast" id="toast"></div>
+<div id="modalRoot"></div>
+
+<script>
+/* ============ ÍCONOS ============ */
+const I={
+  door:'<path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M15 12h.01"/>',
+  bath:'<path d="M4 12V5a2 2 0 0 1 4 0v1M2 12h20v3a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4v-3z"/>',
+  bed:'<path d="M3 7v11M3 12h18v6M21 18v-4a3 3 0 0 0-3-3H8M7 11V8h4v3"/>',
+  check:'<path d="M20 6L9 17l-5-5"/>',
+  x:'<path d="M18 6L6 18M6 6l12 12"/>',
+  minus:'<path d="M5 12h14"/>',
+  tri:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/>',
+  broom:'<path d="M19.4 12.6L9 3 6 6l9.6 10.4M14 11l-7 7M3 21l3-3M9 21l3-3M11 21l4-4"/>',
+  wrench:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6.6 6.6a1.4 1.4 0 0 0 2 2l6.6-6.6a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-2.1 2.6-2.4z"/>',
+  arrowR:'<path d="M5 12h14M12 5l7 7-7 7"/>',
+  qr:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14h1v1h-1zM14 20h1v1h-1zM20 20h1v1h-1zM17 17h3v3h-3z"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  eye:'<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  flag:'<path d="M4 22V4M4 4h11l-2 4 2 4H4"/>',
+  user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  pkg:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>',
+  alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/>',
+  shieldcheck:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>',
+  history:'<path d="M3 12a9 9 0 1 0 9-9 9.74 9.74 0 0 0-6.74 2.74L3 8M3 3v5h5M12 7v5l4 2"/>',
+  spray:'<path d="M9 11h6v9H9zM10 11V8a2 2 0 0 1 2-2 2 2 0 0 1 2 2v3M3 4l3 3M3 8h3M5 11l1-1M19 4h2M21 6v2"/>',
+  send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>',
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  loginIco:'<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
+  refresh:'<path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>'
+};
+const svg=(p,extra)=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" '+(extra||'')+'>'+p+'</svg>';
+
+/* ============ DATOS ============ */
+const USERS=[
+  {id:'u1', name:'María López', initials:'ML', role:'operador', area:'Servicios Generales', code:'SG-014'},
+  {id:'u2', name:'José Ramírez', initials:'JR', role:'operador', area:'Servicios Generales', code:'SG-022'},
+  {id:'u3', name:'Arely Montaño', initials:'AM', role:'supervisor', area:'Servicios Generales', code:'SG-001'},
+  {id:'u4', name:'Dra. Sandra Cruz', initials:'SC', role:'pci', area:'Comité PCI / Infecciones', code:'PCI-003'}
+];
+const ROLE_LABEL={operador:'Operador', supervisor:'Supervisor', pci:'Verificador PCI'};
+
+const PROTOCOLS={
+  rutina:{
+    key:'rutina', name:'Limpieza Rutinaria Diaria', code:'PNT-LIM-001', version:'v2.1',
+    norm:'JCI PCI.04.00 · ME #1', desc:'Limpieza diaria de habitación ocupada. Superficies de alto contacto, baño, pisos, dispensadores.',
+    estTime:'~15 min', photoReq:false, photoSlots:[],
+    steps:[
+      'EPP correctamente colocado (guantes y mascarilla)',
+      'Retirar desechos comunes y reponer bolsa con segregación',
+      'Limpiar y reponer dispensadores (jabón, papel, alcohol gel)',
+      'Desinfectar superficies de alto contacto (manijas, interruptores, barandas, mesas)',
+      'Limpiar y desinfectar inodoro y lavamanos',
+      'Limpiar piso del baño',
+      'Limpiar piso de la habitación',
+      'Verificar acabado y reportar hallazgos visibles'
+    ]
+  },
+  terminal:{
+    key:'terminal', name:'Limpieza Terminal Post-Alta', code:'PNT-LIM-002', version:'v1.3',
+    norm:'JCI PCI.04.00 · ME #1, #3', desc:'Limpieza exhaustiva tras alta del paciente. Habitación desocupada, retiro total, desinfección profunda.',
+    estTime:'~45 min', photoReq:true, photoSlots:['Baño','Cama y mobiliario','Área general'],
+    steps:[
+      'EPP completo (guantes, mascarilla, gabacha)',
+      'Verificar habitación desocupada y cama vacía',
+      'Retirar lencería y ropa de cama; enviar a lavandería',
+      'Retirar desechos con segregación correcta (común / bioinfeccioso)',
+      'Retirar y reemplazar cortina de privacidad',
+      'Limpiar y desinfectar mobiliario completo (cama, mesa, sillón, sobre-cama)',
+      'Desinfectar superficies de alto contacto con producto seleccionado',
+      'Limpiar baño completo (inodoro, lavamanos, ducha, espejo, accesorios)',
+      'Limpiar tomas de O₂/succión externamente y rejillas HVAC accesibles',
+      'Limpiar y desinfectar pisos (habitación y baño)',
+      'Reponer insumos (jabón, papel, gel, bolsas)',
+      'Vestir cama con lencería limpia y verificar acabado'
+    ]
+  },
+  aislamiento:{
+    key:'aislamiento', name:'Limpieza Terminal · Aislamiento Infeccioso', code:'PNT-LIM-003', version:'v1.0',
+    norm:'JCI PCI.04.00 · ME #2, #3', desc:'Post-alta de paciente en aislamiento por enfermedad infecciosa. Protocolo reforzado con doble agente.',
+    estTime:'~75 min', photoReq:true, photoSlots:['Baño','Cama y mobiliario','Cortinas retiradas','Área general'],
+    steps:[
+      'EPP reforzado según tipo de aislamiento (incluye respirador N95 si aplica)',
+      'Tiempo de aireación cumplido antes de ingresar',
+      'Retirar TODO objeto desmontable y bolsear por separado',
+      'Retirar cortinas, almohadas no impermeables y enviar a lavandería marcada',
+      'Aplicar desinfectante con tiempo de contacto extendido',
+      'Doble desinfección de superficies de alto contacto (dos agentes diferentes)',
+      'Limpiar baño con desinfectante reforzado',
+      'Limpiar pisos con doble pasada',
+      'Reponer insumos',
+      'Cierre: verificación de superficies (recomendado ATP o fluorescente)'
+    ]
+  },
+  altoriesgo:{
+    key:'altoriesgo', name:'Limpieza Alto Riesgo (UCI / Quirófano)', code:'PNT-LIM-004', version:'v1.2',
+    norm:'JCI PCI.04.00 · ME #2', desc:'Áreas críticas. Cumple matriz de Spaulding y verificación con marcador o ATP.',
+    estTime:'~60 min', photoReq:true, photoSlots:['Equipos y monitores','Superficies críticas','Área general'],
+    steps:[
+      'EPP completo, validación con compañero',
+      'Pre-limpieza: retirar contaminantes visibles',
+      'Desinfección de superficies según matriz de Spaulding',
+      'Limpieza de tomas, monitores y equipos según fabricante',
+      'Desinfección de pisos con producto autorizado',
+      'Verificación con marcador fluorescente o ATP',
+      'Cierre y sellado para próximo uso'
+    ]
+  }
+};
+
+const INSUMOS=[
+  {gtin:'07501234567890', name:'Hipoclorito de sodio 5.25%', lot:'A2026-114', dil:'1:10 (5,000 ppm)', tipo:'desinfectante'},
+  {gtin:'07501234567906', name:'Peróxido de hidrógeno 1.4%', lot:'B2026-088', dil:'Listo para usar', tipo:'desinfectante'},
+  {gtin:'07501234567913', name:'Cuaternario de amonio 5G', lot:'C2026-201', dil:'1:128', tipo:'desinfectante'},
+  {gtin:'07501234567920', name:'Alcohol isopropílico 70%', lot:'D2026-045', dil:'Listo para usar', tipo:'desinfectante'},
+  {gtin:'07501234567937', name:'Detergente neutro hospitalario', lot:'E2026-022', dil:'1:64', tipo:'limpiador'}
+];
+
+const STATES={
+  pendiente:{label:'Pendiente de limpieza', cls:'sp-pend', icon:I.clock},
+  en_limpieza:{label:'En limpieza', cls:'sp-exec', icon:I.broom},
+  pend_verif:{label:'Pendiente verificación', cls:'sp-verif', icon:I.eye},
+  con_hallazgos:{label:'Con hallazgos pendientes', cls:'sp-hall', icon:I.alert},
+  liberada:{label:'Liberada · Lista para admisión', cls:'sp-rel', icon:I.shieldcheck}
+};
+
+/* Habitaciones — sembradas en distintos estados para demo */
+const now=Date.now();
+let rooms=[
+  {id:'201', tipo:'Hospitalización', piso:'Piso 2', state:'pendiente', motivo:'Alta de paciente', requestedAt:now-3600e3, suggestedProto:'terminal'},
+  {id:'202', tipo:'Hospitalización', piso:'Piso 2', state:'pendiente', motivo:'Limpieza rutinaria diaria', requestedAt:now-1800e3, suggestedProto:'rutina'},
+  {id:'203', tipo:'Hospitalización', piso:'Piso 2', state:'pend_verif', motivo:'Alta de paciente', requestedAt:now-7200e3, suggestedProto:'terminal',
+    execRecord:{
+      userId:'u2', protoKey:'terminal', startedAt:now-3600e3, finishedAt:now-900e3,
+      stepsConfirmed:Array(12).fill(null).map((_,i)=>({idx:i, at:now-3600e3+(i+1)*200e3})),
+      insumos:['07501234567906','07501234567920'], photos:{0:'demo',1:'demo',2:'demo'}, incidents:[]
+    }
+  },
+  {id:'301', tipo:'Suite', piso:'Piso 3', state:'liberada', motivo:'Alta de paciente', requestedAt:now-86400e3, suggestedProto:'terminal',
+    execRecord:{userId:'u1', protoKey:'terminal', startedAt:now-86400e3, finishedAt:now-83400e3,
+      stepsConfirmed:Array(12).fill(null).map((_,i)=>({idx:i, at:now-86400e3+(i+1)*230e3})),
+      insumos:['07501234567906','07501234567920'], photos:{0:'demo',1:'demo',2:'demo'}, incidents:[]},
+    verifRecord:{userId:'u3', startedAt:now-82800e3, finishedAt:now-82200e3, conformidad:100, hallazgos:[]},
+    releasedAt:now-82200e3, releasedBy:'u3'
+  },
+  {id:'302', tipo:'Suite', piso:'Piso 3', state:'pendiente', motivo:'Alta de paciente', requestedAt:now-900e3, suggestedProto:'terminal'},
+  {id:'UCI-1', tipo:'Cuidados Intensivos', piso:'Piso 1', state:'pendiente', motivo:'Post-alta aislamiento infeccioso', requestedAt:now-1200e3, suggestedProto:'aislamiento'}
+];
+
+/* Plantilla de verificación */
+const VERIF_TEMPLATE=[
+  {area:'Ingreso y Puerta', items:[
+    {id:'i1', t:'M', l:'Puerta abre y cierra sin obstrucción'},
+    {id:'i2', t:'L', l:'Hoja de puerta sin suciedad ni marcas'},
+    {id:'i3', t:'M', l:'Número de habitación y señalética legibles'}
+  ]},
+  {area:'Baño', items:[
+    {id:'b1', t:'L', l:'Sin suciedad en contornos, esquinas y zócalos'},
+    {id:'b2', t:'L', l:'Inodoro limpio y desinfectado'},
+    {id:'b3', t:'M', l:'Tapa del inodoro firme, sin holgura'},
+    {id:'b4', t:'M', l:'Llave del lavamanos sin fuga'},
+    {id:'b5', t:'L', l:'Espejo limpio y bien fijado'},
+    {id:'b6', t:'L', l:'Sin moho ni humedad en juntas'}
+  ]},
+  {area:'Área de cama y paciente', items:[
+    {id:'c1', t:'L', l:'Cama limpia y desinfectada, lencería correcta'},
+    {id:'c2', t:'M', l:'Barandas y mando de cama operativos'},
+    {id:'c3', t:'M', l:'Tomas de O₂/succión sin daño visible'}
+  ]},
+  {area:'Higiene y dispensadores', items:[
+    {id:'h1', t:'L', l:'Dispensador de alcohol gel con carga'},
+    {id:'h2', t:'L', l:'Insumos de higiene completos'},
+    {id:'h3', t:'L', l:'Bote de desechos limpio y segregación correcta'}
+  ]}
+];
+
+/* Bitácora global (event log) */
+let auditLog=[];
+
+/* ============ ESTADO ============ */
+let currentUser=null;
+let screen='login';
+let prev=[];
+let activeRoom=null;       // {id} mientras se trabaja
+let execDraft=null;        // ejecución en curso
+let verifDraft=null;       // verificación en curso
+let timerInterval=null;
+
+/* ============ HELPERS ============ */
+const $=id=>document.getElementById(id);
+const content=$('content'), actionbar=$('actionbar');
+const fmtTime=ts=>{ const d=new Date(ts); return d.toLocaleTimeString('es-SV',{hour:'2-digit',minute:'2-digit'}); };
+const fmtDateTime=ts=>{ const d=new Date(ts); return d.toLocaleString('es-SV',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); };
+const elapsed=(s,e)=>{ const sec=Math.floor((e-s)/1000); const m=Math.floor(sec/60), ss=sec%60; return m+':'+String(ss).padStart(2,'0'); };
+const userById=id=>USERS.find(u=>u.id===id);
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
+function logEvent(roomId, type, detail, actor){
+  auditLog.push({ts:Date.now(), roomId, type, detail, actor:actor||(currentUser?currentUser.id:null)});
+}
+function openModal(html){ $('modalRoot').innerHTML='<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">'+html+'</div></div>'; }
+function closeModal(){ $('modalRoot').innerHTML=''; }
+
+/* ============ NAV ============ */
+function nav(s, opts){ prev.push(screen); screen=s; render(opts); }
+function back(){
+  if(screen==='dashboard'){ if(confirm('¿Cambiar de perfil? Se cerrará la sesión actual.')) logout(); return; }
+  if(timerInterval){clearInterval(timerInterval); timerInterval=null;}
+  if(screen==='exec_journey' && !confirm('¿Salir de la limpieza en curso? Los pasos ya confirmados se conservan en bitácora.'))return;
+  if(screen==='verif_journey' && !confirm('¿Salir de la verificación? Las respuestas no registradas se perderán.'))return;
+  screen = prev.pop() || (currentUser?'dashboard':'login');
+  render();
+}
+function render(opts){
+  $('backBtn').style.display = (screen==='login')?'none':'flex';
+  $('userstrip').style.display = currentUser?'flex':'none';
+  if(currentUser){
+    $('userstrip').innerHTML = `<div class="avatar" style="width:24px;height:24px;font-size:10px;">${currentUser.initials}</div>
+      <span><b>${currentUser.name}</b> · ${currentUser.area}</span>
+      <span class="role">${ROLE_LABEL[currentUser.role]}</span>
+      <span class="switch" onclick="logout()">Cambiar</span>`;
+  }
+  actionbar.style.display='none';
+  content.scrollTop=0;
+  if(screen==='login')renderLogin();
+  else if(screen==='dashboard')renderDashboard();
+  else if(screen==='exec_qr')renderExecQR();
+  else if(screen==='exec_protocol')renderExecProtocol();
+  else if(screen==='exec_insumos')renderExecInsumos();
+  else if(screen==='exec_journey')renderExecJourney();
+  else if(screen==='exec_photos')renderExecPhotos();
+  else if(screen==='exec_done')renderExecDone();
+  else if(screen==='verif_review')renderVerifReview();
+  else if(screen==='verif_journey')renderVerifJourney();
+  else if(screen==='verif_done')renderVerifDone();
+  else if(screen==='trace')renderTrace(opts&&opts.roomId);
+}
+
+/* ============ LOGIN ============ */
+function renderLogin(){
+  $('barTitle').textContent='Iniciar sesión';
+  $('barSub').textContent='Identificación obligatoria · JCI MCI';
+  const cards=USERS.map(u=>`
+    <button class="userbtn" onclick="login('${u.id}')">
+      <div class="avatar">${u.initials}</div>
+      <div>
+        <div class="uname">${u.name}</div>
+        <div class="urole">${ROLE_LABEL[u.role]} · ${u.area}</div>
+      </div>
+      <span class="upill">${u.code}</span>
+    </button>`).join('');
+  content.innerHTML=`
+    <p class="intro">Cada evento de limpieza queda atado a una identidad. <b>JCI no acepta eventos anónimos.</b> Seleccione su perfil para esta demostración —en producción la autenticación sería por PIN, credencial o badge.</p>
+    <p class="section-label">Perfiles de demostración</p>
+    ${cards}
+    <p class="ribbon"><b>Bitácora</b> · cada acción del usuario queda registrada con marca de tiempo, motivo y rol, en cumplimiento de <b>MCI</b> (Management of Communication and Information) y <b>PCI.04.00 ME #4</b>.</p>`;
+}
+function login(uid){
+  currentUser=userById(uid);
+  prev=[]; screen='dashboard';
+  logEvent(null,'login',`Inicio de sesión: ${currentUser.name} (${ROLE_LABEL[currentUser.role]})`);
+  render();
+  toast('Sesión iniciada · '+currentUser.name);
+}
+function logout(){
+  logEvent(null,'logout','Cierre de sesión');
+  currentUser=null; prev=[]; screen='login'; activeRoom=null; execDraft=null; verifDraft=null;
+  render();
+}
+
+/* ============ DASHBOARD ============ */
+function renderDashboard(){
+  $('barTitle').textContent='Tablero operativo';
+  $('barSub').textContent='Estado en tiempo real';
+
+  // pipeline counts
+  const counts={pendiente:0,en_limpieza:0,pend_verif:0,con_hallazgos:0,liberada:0};
+  rooms.forEach(r=>counts[r.state]++);
+  const pipelineKeys=['pendiente','en_limpieza','pend_verif','con_hallazgos','liberada'];
+  const pipeline=`<div class="pipeline">
+    <div class="ph">Máquina de estados de la habitación</div>
+    <div class="pipesteps">
+      ${pipelineKeys.map(k=>`<div class="pipestep"><div class="pc">${counts[k]}</div><div class="pl">${STATES[k].label.replace(' · Lista para admisión','').replace(' pendientes','').replace('Pendiente ','Pend. ')}</div></div>`).join('')}
+    </div>
+  </div>`;
+
+  // filter by role
+  const r=currentUser.role;
+  let visible=rooms;
+  let label='Habitaciones';
+  if(r==='operador'){
+    visible = rooms.filter(x=>x.state==='pendiente'||x.state==='con_hallazgos'||(x.state==='en_limpieza'&&execDraft&&execDraft.userId===currentUser.id));
+    label='Habitaciones que requieren limpieza';
+  } else if(r==='supervisor'||r==='pci'){
+    visible = rooms.filter(x=>x.state==='pend_verif'||x.state==='con_hallazgos'||x.state==='liberada');
+    label='Habitaciones para verificación o consulta';
+  }
+
+  const cards=visible.map(rm=>{
+    const st=STATES[rm.state];
+    const proto=rm.suggestedProto?PROTOCOLS[rm.suggestedProto]:null;
+    const ctaTxt = (r==='operador'&&rm.state==='pendiente')?'Iniciar limpieza'
+                 : (r==='operador'&&rm.state==='con_hallazgos')?'Corregir hallazgos'
+                 : ((r==='supervisor'||r==='pci')&&rm.state==='pend_verif')?'Iniciar verificación'
+                 : 'Ver trazabilidad';
+    return `<div class="room" onclick="openRoom('${rm.id}')">
+      <div class="room-h">
+        <span class="room-num">Hab. ${rm.id}</span>
+        <span class="room-type">${rm.tipo}</span>
+        <span class="room-floor">${rm.piso}</span>
+      </div>
+      <div class="room-meta"><b>Motivo:</b> ${rm.motivo}${proto?` · <b>Protocolo sugerido:</b> ${proto.name.replace('Limpieza ','')} (${proto.code} ${proto.version})`:''}</div>
+      <div class="room-foot">
+        <span class="statepill ${st.cls}">${svg(st.icon)}${st.label}</span>
+        <span class="room-cta">${ctaTxt}${svg(I.arrowR)}</span>
+      </div>
+    </div>`;
+  }).join('') || `<div class="card" style="text-align:center;color:var(--gris-med);font-size:12.5px;padding:24px;">Sin habitaciones para este perfil en este momento.</div>`;
+
+  content.innerHTML=`${pipeline}
+    <p class="section-label">${label}</p>
+    <div class="room-grid">${cards}</div>
+    <p class="ribbon">Trazabilidad completa · cada habitación encadena <b>Registro de Ejecución</b> + <b>Registro de Verificación</b> + <b>Liberación</b>. Una habitación no se libera para admisión sin los tres eslabones completos.</p>`;
+}
+
+function openRoom(id){
+  const rm=rooms.find(x=>x.id===id);
+  activeRoom=rm;
+  const r=currentUser.role;
+  if(r==='operador'){
+    if(rm.state==='pendiente'){ startExecution(rm); }
+    else if(rm.state==='con_hallazgos'){ toast('Corrección de hallazgos · flujo no incluido en este prototipo'); }
+    else { nav('trace',{roomId:id}); }
+  } else {
+    if(rm.state==='pend_verif'){ startVerification(rm); }
+    else { nav('trace',{roomId:id}); }
+  }
+}
+
+/* ============ EJECUCIÓN ============ */
+function startExecution(rm){
+  execDraft={
+    userId:currentUser.id, roomId:rm.id, protoKey:null,
+    startedAt:null, finishedAt:null,
+    stepsConfirmed:[], insumos:[], photos:{}, incidents:[],
+    qrScanned:false
+  };
+  logEvent(rm.id,'exec_open','Apertura de registro de ejecución');
+  nav('exec_qr');
+}
+
+function renderExecQR(){
+  $('barTitle').textContent='Anclaje físico';
+  $('barSub').textContent='Escaneo de QR de habitación';
+  content.innerHTML=`
+    <div class="qrwrap">
+      <div class="qrframe"><i></i><div class="scanline"></div></div>
+      <p class="qrtxt">Apunte la cámara al <b>QR colocado en la puerta de la habitación</b>. Esto ancla el registro al espacio físico y captura la marca de tiempo no editable.</p>
+    </div>
+    <p class="ribbon">El QR garantiza presencia <i>in situ</i> del operador. Es la diferencia entre "marqué que limpié" y <b>"estuve físicamente en la habitación al iniciar"</b>.</p>`;
+  actionbar.style.display='flex';
+  actionbar.innerHTML=`<button class="btn btn-primary" onclick="qrConfirm()">${svg(I.qr)}Simular escaneo de Hab. ${activeRoom.id}</button>`;
+}
+function qrConfirm(){
+  execDraft.qrScanned=true;
+  logEvent(activeRoom.id,'qr_scan','QR de habitación escaneado · anclaje físico confirmado');
+  toast('QR validado · Hab. '+activeRoom.id);
+  nav('exec_protocol');
+}
+
+function renderExecProtocol(){
+  $('barTitle').textContent='Hab. '+activeRoom.id;
+  $('barSub').textContent='Seleccionar protocolo';
+  const sug=activeRoom.suggestedProto;
+  const cards=Object.values(PROTOCOLS).map(p=>`
+    <div class="protocard ${execDraft.protoKey===p.key?'sel':''} ${sug===p.key?'':''}" onclick="selProto('${p.key}')">
+      <div class="protocard-h">
+        <span class="protoname">${p.name}</span>
+        ${sug===p.key?'<span class="upill" style="font-size:9px;margin-left:auto;color:var(--azul);border-color:var(--azul);">Sugerido</span>':''}
+      </div>
+      <div class="protometa"><b>${p.code} ${p.version}</b><span>${p.norm}</span><span>${p.estTime}</span><span>${p.steps.length} pasos${p.photoReq?' · '+p.photoSlots.length+' fotos':''}</span></div>
+      <div class="protodesc">${p.desc}</div>
+    </div>`).join('');
+  content.innerHTML=`
+    <div class="card">
+      <p class="card-t">${svg(I.alert)}Motivo registrado</p>
+      <div style="font-size:13px;"><b>${activeRoom.motivo}</b></div>
+      <div style="font-size:11px;color:var(--gris-med);margin-top:4px;">Solicitado: ${fmtDateTime(activeRoom.requestedAt)}</div>
+    </div>
+    <p class="section-label">Protocolos disponibles</p>
+    ${cards}
+    <p class="ribbon">El sistema captura <b>la versión exacta del PNT</b> al momento de ejecución (JCI exige saber contra qué estándar se trabajó). Si el PNT cambia, los registros anteriores conservan su versión original.</p>`;
+  actionbar.style.display='flex';
+  actionbar.innerHTML=`<button class="btn btn-primary" ${execDraft.protoKey?'':'disabled'} onclick="nav('exec_insumos')">Continuar${svg(I.arrowR)}</button>`;
+}
+function selProto(k){ execDraft.protoKey=k; renderExecProtocol(); }
+
+function renderExecInsumos(){
+  $('barTitle').textContent='Hab. '+activeRoom.id;
+  $('barSub').textContent='Insumos a utilizar';
+  const items=INSUMOS.map(it=>{
+    const sel=execDraft.insumos.includes(it.gtin);
+    return `<div class="insumo ${sel?'sel':''}" onclick="toggleInsumo('${it.gtin}')">
+      <div class="chk">${sel?svg(I.check):''}</div>
+      <div style="flex:1;">
+        <div class="iname">${it.name}</div>
+        <div class="imeta">GTIN <code>${it.gtin}</code> · Lote <code>${it.lot}</code> · ${it.dil}</div>
+      </div>
+    </div>`;
+  }).join('');
+  content.innerHTML=`
+    <p class="intro">Registre los <b>insumos a utilizar</b>. Cada uno con GTIN y lote queda anclado al evento de limpieza —misma disciplina GS1 que aplicamos a Botiquín.</p>
+    <p class="section-label">Desinfectantes y limpiadores disponibles</p>
+    ${items}
+    <p class="ribbon">El registro de insumo + lote permite, ante un brote, <b>retroceder a todas las habitaciones limpiadas con ese mismo lote</b>. Trazabilidad EPCIS aplicada al proceso.</p>`;
+  actionbar.style.display='flex';
+  actionbar.innerHTML=`<button class="btn btn-primary" ${execDraft.insumos.length?'':'disabled'} onclick="startTimer()">${svg(I.clock)}Iniciar limpieza</button>`;
+}
+function toggleInsumo(g){
+  const i=execDraft.insumos.indexOf(g);
+  if(i<0) execDraft.insumos.push(g); else execDraft.insumos.splice(i,1);
+  renderExecInsumos();
+}
+function startTimer(){
+  execDraft.startedAt=Date.now();
+  rooms.find(r=>r.id===activeRoom.id).state='en_limpieza';
+  logEvent(activeRoom.id,'exec_start',`Inicio de limpieza · ${PROTOCOLS[execDraft.protoKey].code} ${PROTOCOLS[execDraft.protoKey].version} · insumos: ${execDraft.insumos.length}`);
+  nav('exec_journey');
+}
+
+function renderExecJourney(){
+  const p=PROTOCOLS[execDraft.protoKey];
+  $('barTitle').textContent='Hab. '+activeRoom.id;
+  $('barSub').textContent=p.name;
+  const done=execDraft.stepsConfirmed.length;
+  const total=p.steps.length;
+  const allDone=done===total;
+
+  const stepsHtml=p.steps.map((s,i)=>{
+    const cf=execDraft.stepsConfirmed.find(x=>x.idx===i);
+    const isDone=!!cf;
+    const isActive=i===done;
+    let cls='stepblk'+(isDone?' done':isActive?' active':'');
+    let numCont = isDone?svg(I.check):(i+1);
+    let actions='';
+    if(isActive && !isDone){
+      actions=`<div class="stepacts">
+        <button class="stepbtn confirm" onclick="confirmStep(${i})">${svg(I.check)} Confirmar paso</button>
+        <button class="stepbtn incident" onclick="openIncident(${i})">${svg(I.alert)} Incidente</button>
+      </div>`;
+    }
+    return `<div class="${cls}">
+      <div class="stepblk-h"><div class="stepnum">${numCont}</div><div class="steplabel">${s}</div></div>
+      ${isDone?`<div class="steptime">Confirmado · ${fmtTime(cf.at)}</div>`:''}
+      ${actions}
+    </div>`;
+  }).join('');
+
+  content.innerHTML=`
+    <div style="margin:-16px -16px 0;">
+      <div class="timer-strip">
+        <div>
+          <div class="tl">Tiempo transcurrido</div>
+          <div class="clk" id="clk">0:00</div>
+        </div>
+        <div class="pntinfo"><b>${p.code} ${p.version}</b><br>${done}/${total} pasos · Est. ${p.estTime}</div>
+      </div>
+    </div>
+    <p class="section-label" style="margin-top:14px;">Secuencia del protocolo</p>
+    ${stepsHtml}
+    <p class="ribbon">Cada confirmación queda con <b>marca de tiempo no editable</b>. La secuencia es estricta: el siguiente paso se desbloquea al confirmar el anterior.</p>`;
+
+  actionbar.style.display='flex';
+  if(p.photoReq && allDone){
+    actionbar.innerHTML=`<button class="btn btn-primary" onclick="nav('exec_photos')">${svg(I.camera)}Capturar evidencia fotográfica</button>`;
+  } else if(allDone){
+    actionbar.innerHTML=`<button class="btn btn-primary" onclick="finalizeExec()">${svg(I.flag)}Finalizar limpieza</button>`;
+  } else {
+    actionbar.innerHTML=`<button class="btn btn-ghost" disabled style="flex:1;">Confirme los ${total-done} pasos restantes</button>`;
+  }
+
+  if(timerInterval)clearInterval(timerInterval);
+  const updateClk=()=>{ const c=$('clk'); if(c) c.textContent=elapsed(execDraft.startedAt, Date.now()); };
+  updateClk();
+  timerInterval=setInterval(updateClk,1000);
+}
+function confirmStep(i){
+  execDraft.stepsConfirmed.push({idx:i, at:Date.now()});
+  logEvent(activeRoom.id,'step_confirm',`Paso ${i+1}/${PROTOCOLS[execDraft.protoKey].steps.length}: ${PROTOCOLS[execDraft.protoKey].steps[i]}`);
+  renderExecJourney();
+}
+function openIncident(i){
+  openModal(`<div class="modal-h"><span>${svg(I.alert,'style="color:var(--ambar)"')}</span><span class="t">Reportar incidente</span><span class="x" onclick="closeModal()">${svg(I.x)}</span></div>
+    <div class="modal-b">
+      <p style="font-size:12.5px;color:var(--gris);margin:0 0 10px;">Paso: <b>${PROTOCOLS[execDraft.protoKey].steps[i]}</b></p>
+      <p class="vdl">Descripción del incidente</p>
+      <textarea id="incTxt" placeholder="Ej. Mancha persistente en azulejo · necesita revisión de Mantenimiento" rows="3"></textarea>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button class="btn btn-ghost" style="flex:1;" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="saveIncident(${i})">Registrar</button>
+      </div>
+    </div>`);
+}
+function saveIncident(i){
+  const txt=document.getElementById('incTxt').value.trim();
+  if(!txt){ toast('Descripción requerida'); return; }
+  execDraft.incidents.push({stepIdx:i, text:txt, at:Date.now()});
+  logEvent(activeRoom.id,'incident',`Incidente en paso ${i+1}: ${txt}`);
+  closeModal();
+  toast('Incidente registrado · enrutado a Mantenimiento');
+}
+
+function renderExecPhotos(){
+  const p=PROTOCOLS[execDraft.protoKey];
+  $('barTitle').textContent='Hab. '+activeRoom.id;
+  $('barSub').textContent='Evidencia fotográfica';
+  const slots=p.photoSlots.map((name,idx)=>{
+    const img=execDraft.photos[idx];
+    return `<label class="photoslot ${img?'filled':''}" for="ph${idx}">
+      ${img?`<img src="${img==='demo'?demoImg(idx):img}" alt="${name}">`:svg(I.camera)}
+      <span class="pname">${name}</span>
+      <input id="ph${idx}" type="file" accept="image/*" capture="environment" onchange="photoChosen(${idx}, this)">
+    </label>`;
+  }).join('');
+  const allPhotos = p.photoSlots.every((_,i)=>execDraft.photos[i]);
+  content.innerHTML=`
+    <p class="intro">Para limpieza <b>${p.name.toLowerCase()}</b> se requieren <b>${p.photoSlots.length} fotografías</b> de cierre. Toque cada recuadro para capturar con la cámara. Sin las tomas requeridas el sistema no permite finalizar.</p>
+    <div class="photogrid">${slots}</div>
+    <div style="text-align:center;margin-top:14px;">
+      <button class="stepbtn" onclick="simulateAllPhotos()">${svg(I.refresh)} Simular las ${p.photoSlots.length} capturas</button>
+    </div>
+    <p class="ribbon">Las fotografías quedan timestampadas y atadas al QR de habitación. <b>Política de privacidad:</b> solo superficies y equipamiento; nunca pacientes ni pertenencias personales.</p>`;
+  actionbar.style.display='flex';
+  actionbar.innerHTML=`<button class="btn btn-primary" ${allPhotos?'':'disabled'} onclick="finalizeExec()">${svg(I.flag)}Finalizar limpieza</button>`;
+}
+function photoChosen(idx, input){
+  const f=input.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{ execDraft.photos[idx]=r.result; logEvent(activeRoom.id,'photo',`Foto registrada · ${PROTOCOLS[execDraft.protoKey].photoSlots[idx]}`); renderExecPhotos(); };
+  r.readAsDataURL(f);
+}
+function simulateAllPhotos(){
+  PROTOCOLS[execDraft.protoKey].photoSlots.forEach((_,i)=>execDraft.photos[i]='demo');
+  logEvent(activeRoom.id,'photo','Capturas simuladas (modo demo)');
+  toast('Capturas simuladas');
+  renderExecPhotos();
+}
+function demoImg(idx){
+  // simple inline svg placeholder
+  const colors=['#1A2B4A','#5B9BA8','#7A6B8E','#4A4A4A'];
+  const c=colors[idx%colors.length];
+  return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='${c}'/><text x='50' y='55' font-family='sans-serif' font-size='10' fill='white' text-anchor='middle' opacity='0.6'>demo</text></svg>`);
+}
+
+function finalizeExec(){
+  if(timerInterval){clearInterval(timerInterval); timerInterval=null;}
+  execDraft.finishedAt=Date.now();
+  const rm=rooms.find(r=>r.id===activeRoom.id);
+  rm.execRecord=Object.assign({}, execDraft);
+  rm.state='pend_verif';
+  logEvent(activeRoom.id,'exec_finish',`Cierre de ejecución · duración ${elapsed(execDraft.startedAt, execDraft.finishedAt)} · ${execDraft.incidents.length} incidente(s)`);
+  nav('exec_done');
+}
+
+function renderExecDone(){
+  const p=PROTOCOLS[execDraft.protoKey];
+  $('barTitle').textContent='Cierre de ejecución';
+  $('barSub').textContent='Hab. '+activeRoom.id+' · Registro firmado';
+  const dur=elapsed(execDraft.startedAt, execDraft.finishedAt);
+  const ins=execDraft.insumos.map(g=>INSUMOS.find(x=>x.gtin===g)).map(x=>`${x.name} · ${x.lot}`).join('<br>');
+  content.innerHTML=`
+    <div class="card" style="border-color:var(--verde);background:#f4faf7;">
+      <p class="card-t" style="color:var(--verde);">${svg(I.shieldcheck)}Registro de ejecución firmado</p>
+      <div class="esline"><b>Habitación</b><span>${activeRoom.id} · ${activeRoom.tipo}</span></div>
+      <div class="esline"><b>Protocolo</b><span>${p.name}</span></div>
+      <div class="esline"><b>PNT</b><span>${p.code} ${p.version}</span></div>
+      <div class="esline"><b>Operador</b><span>${currentUser.name} (${currentUser.code})</span></div>
+      <div class="esline"><b>Inicio</b><span>${fmtDateTime(execDraft.startedAt)}</span></div>
+      <div class="esline"><b>Fin</b><span>${fmtDateTime(execDraft.finishedAt)} · ${dur}</span></div>
+      <div class="esline"><b>Pasos</b><span>${execDraft.stepsConfirmed.length}/${p.steps.length} confirmados</span></div>
+      <div class="esline"><b>Fotos</b><span>${Object.keys(execDraft.photos).length}/${p.photoSlots.length||0} capturadas</span></div>
+      <div class="esline"><b>Insumos</b><span style="font-size:11.5px;">${ins||'—'}</span></div>
+      ${execDraft.incidents.length?`<div class="esline"><b>Incidentes</b><span style="color:var(--ambar);">${execDraft.incidents.length} reportado(s)</span></div>`:''}
+    </div>
+    <p class="ribbon">La habitación pasó a estado <b>Pendiente de verificación</b>. <b>No se libera para admisión</b> hasta que un supervisor o miembro de PCI valide independientemente.</p>`;
+  actionbar.style.display='flex';
+  actionbar.innerHTML=`
+    <button class="btn btn-ghost" onclick="nav('trace',{roomId:'${activeRoom.id}'})">${svg(I.history)}Ver bitácora</button>
+    <button class="btn btn-primary" onclick="goDashboard()">Volver al tablero${svg(I.arrowR)}</button>`;
+}
+function goDashboard(){ prev=[]; screen='dashboard'; execDraft=null; verifDraft=null; activeRoom=null; render(); }
+
+/* ============ VERIFICACIÓN ============ */
+function startVerification(rm){
+  verifDraft={userId:currentUser.id, roomId:rm.id, startedAt:Date.now(), results:{}};
+  activeRoom=rm;
+  logEvent(rm.id,'verif_open','Apertura de verificación independiente');
+  nav('verif_review');
+}
+
+function renderVerifReview(){
+  const rm=activeRoom;
+  const e=rm.execRecord;
+  const p=PROTOCOLS[e.protoKey];
+  const op=userById(e.userId);
+  $('barTitle').textContent='Hab. '+rm.id;
+  $('barSub').textContent='Revisar ejecución antes de verificar';
+  const ins=e.insumos.map(g=>INSUMOS.find(x=>x.gtin===g)).map(x=>x.name).join(', ');
+  const photos = p.photoSlots.map((n,i)=>e.photos[i]?`<div class="esphoto"><img src="${e.photos[i]==='demo'?demoImg(i):e.photos[i]}" alt="${n}"></div>`:'').join('');
+  content.innerHTML=`
+    <div class="execsum">
+      <div class="esh">${svg(I.shieldcheck)}Registro de ejecución (read-only)</div>
+      <div class="esline"><b>Protocolo</b><span>${p.name} (${p.code} ${p.version})</span></div>
+      <div class="esline"><b>Operador</b><span>${op.name} · ${op.code}</span></div>
+      <div class="esline"><b>Inicio / Fin</b><span>${fmtTime(e.startedAt)} → ${fmtTime(e.finishedAt)} (${elapsed(e.startedAt,e.finishedAt)})</span></div>
+      <div class="esline"><b>Pasos</b><span>${e.stepsConfirmed.length}/${p.steps.length} confirmados</span></div>
+      <div class="esline"><b>Insumos</b><span style="font-size:11.5px;">${ins}</span></div>
+      ${e.incidents.length?`<div class="esline"><b>Incidentes</b><span style="color:var(--ambar);">${e.incidents.length}</span></div>`:''}
+      ${photos?`<div class="esphotos">${photos}</div>`:''}
+    </div>
+    <p class="intro">Va a iniciar la <b>verificación independiente</b>. Su rol no es repetir la limpieza, es <b>confirmar visualmente que el resultado cumple el estándar</b> antes de liberar la habitación.</p>
+    <p class="ribbon">JCI PCI.04.00 ME #4 · supervisión del proceso por persona distinta a quien ejecutó.</p>`;
+  actionbar.style.display='flex';
+  actionbar.innerHTML=`<button class="btn btn-primary" onclick="nav('verif_journey')">${svg(I.eye)}Iniciar verificación</button>`;
+}
+
+function renderVerifJourney(){
+  $('barTitle').textContent='Verificación · Hab. '+activeRoom.id;
+  $('barSub').textContent='Revisión visual';
+  const html=VERIF_TEMPLATE.map(area=>{
+    const items=area.items.map(it=>{
+      const r=verifDraft.results[it.id]||{};
+      const badge=it.t==='L'?`<span class="vbadge">${svg(I.broom,'style="width:9px;height:9px;display:inline;vertical-align:middle;"')} Limpieza</span>`:`<span class="vbadge">${svg(I.wrench,'style="width:9px;height:9px;display:inline;vertical-align:middle;"')} Mantto.</span>`;
+      let detail='';
+      if(r.estado==='n'){
+        const sevs=[['menor','Menor','var(--ambar)'],['mayor','Mayor','var(--rojo2)'],['critico','Crítico','var(--rojo)']];
+        const chips=sevs.map(([k,lbl,col])=>`<button class="stepbtn" style="${r.sev===k?`background:${col};color:#fff;border-color:${col};`:`color:${col};border-color:${col};`}flex:1;" onclick="setSev('${it.id}','${k}')">${lbl}</button>`).join('');
+        detail=`<div class="vdetail">
+          <div class="vdl">Severidad</div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;">${chips}</div>
+          <div class="vdl">Nota</div>
+          <textarea placeholder="Describa el hallazgo…" oninput="setNota('${it.id}',this.value)">${r.nota||''}</textarea>
+        </div>`;
+      }
+      return `<div class="vcheck">
+        <div class="vcheck-top"><div class="vlabel">${it.l}</div>${badge}</div>
+        <div class="vopts">
+          <div class="vopt c ${r.estado==='c'?'sel':''}" onclick="setEst('${it.id}','c')">${svg(I.check)}Conforme</div>
+          <div class="vopt n ${r.estado==='n'?'sel':''}" onclick="setEst('${it.id}','n')">${svg(I.x)}No conf.</div>
+          <div class="vopt na ${r.estado==='na'?'sel':''}" onclick="setEst('${it.id}','na')">${svg(I.minus)}N/A</div>
+        </div>
+        ${detail}
+      </div>`;
+    }).join('');
+    return `<p class="section-label" style="margin-top:16px;">${area.area}</p>${items}`;
+  }).join('');
+  content.innerHTML=html;
+  const total=VERIF_TEMPLATE.reduce((a,ar)=>a+ar.items.length,0);
+  const done=Object.values(verifDraft.results).filter(r=>r.estado).length;
+  actionbar.style.display='flex';
+  actionbar.innerHTML=`<button class="btn btn-primary" ${done===total?'':'disabled'} onclick="finalizeVerif()">${done===total?`Ver resumen ${svg(I.arrowR)}`:`${done}/${total} puntos`}</button>`;
+}
+function setEst(id,e){
+  const r=verifDraft.results[id]||{};
+  r.estado=e;
+  if(e!=='n'){ delete r.sev; delete r.nota; } else if(!r.sev) r.sev='mayor';
+  verifDraft.results[id]=r;
+  renderVerifJourney();
+}
+function setSev(id,s){ verifDraft.results[id].sev=s; renderVerifJourney(); }
+function setNota(id,v){ verifDraft.results[id].nota=v; }
+
+function finalizeVerif(){
+  verifDraft.finishedAt=Date.now();
+  let conf=0,noconf=0,hall=[];
+  VERIF_TEMPLATE.forEach(a=>a.items.forEach(it=>{
+    const r=verifDraft.results[it.id]||{};
+    if(r.estado==='c')conf++;
+    else if(r.estado==='n'){noconf++; hall.push({area:a.area, punto:it.l, t:it.t, sev:r.sev, nota:r.nota||''});}
+  }));
+  const base=conf+noconf;
+  verifDraft.conformidad=base?Math.round(conf/base*100):100;
+  verifDraft.hallazgos=hall;
+  logEvent(activeRoom.id,'verif_finish',`Verificación completada · ${verifDraft.conformidad}% conformidad · ${hall.length} hallazgo(s)`);
+  nav('verif_done');
+}
+
+function renderVerifDone(){
+  const v=verifDraft;
+  const rm=activeRoom;
+  $('barTitle').textContent='Resumen · Hab. '+rm.id;
+  $('barSub').textContent='Decisión de liberación';
+  let conf=0,noconf=0,na=0;
+  VERIF_TEMPLATE.forEach(a=>a.items.forEach(it=>{
+    const r=v.results[it.id]||{};
+    if(r.estado==='c')conf++; else if(r.estado==='n')noconf++; else if(r.estado==='na')na++;
+  }));
+  const base=conf+noconf;
+  const findHtml = v.hallazgos.length===0
+    ? `<div style="text-align:center;padding:20px;color:var(--verde);">${svg(I.shieldcheck,'style="width:36px;height:36px;display:inline-block;"')}<div style="font-weight:700;font-size:14px;margin-top:6px;">Sin hallazgos · habitación lista para liberar</div></div>`
+    : v.hallazgos.map(h=>{
+        const c=h.sev==='critico'?'var(--rojo)':h.sev==='mayor'?'var(--rojo2)':'var(--ambar)';
+        const txt=h.sev==='critico'?'Crítico':h.sev==='mayor'?'Mayor':'Menor';
+        return `<div class="vcheck" style="border-left:3px solid ${c};">
+          <div style="font-size:10px;color:var(--gris-med);text-transform:uppercase;letter-spacing:.05em;">${h.area}</div>
+          <div style="font-size:13px;margin-top:3px;">${h.punto}</div>
+          ${h.nota?`<div style="font-size:11.5px;color:var(--gris);margin-top:3px;font-style:italic;">"${h.nota}"</div>`:''}
+          <span style="display:inline-block;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:3px;margin-top:6px;background:${c};color:#fff;">${txt}</span>
+        </div>`;
+      }).join('');
+
+  content.innerHTML=`
+    <div class="confbar">
+      <div class="cl">Índice de conformidad</div>
+      <div class="pct">${v.conformidad}<small>%</small></div>
+      <div class="barwrap">
+        <i style="width:${base?conf/base*100:100}%;background:var(--verde);"></i>
+        <i style="width:${base?noconf/base*100:0}%;background:var(--rojo);"></i>
+      </div>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="big" style="color:var(--verde);">${conf}</div><div class="lbl">Conformes</div></div>
+      <div class="kpi"><div class="big" style="color:var(--rojo);">${noconf}</div><div class="lbl">Hallazgos</div></div>
+      <div class="kpi"><div class="big" style="color:var(--gris-med);">${na}</div><div class="lbl">N/A</div></div>
+    </div>
+    <p class="section-label">Hallazgos</p>
+    ${findHtml}
+    <p class="ribbon">${v.hallazgos.length===0?'Puede <b>liberar la habitación</b> para admisión.':'<b>No se puede liberar</b> hasta que los hallazgos se corrijan y se reverifiquen.'}</p>`;
+  actionbar.style.display='flex';
+  if(v.hallazgos.length===0){
+    actionbar.innerHTML=`<button class="btn btn-ghost" onclick="nav('trace',{roomId:'${rm.id}'})">${svg(I.history)}Bitácora</button>
+      <button class="btn btn-success" onclick="releaseRoom()">${svg(I.shieldcheck)}Liberar habitación</button>`;
+  } else {
+    actionbar.innerHTML=`<button class="btn btn-ghost" onclick="goDashboard()">Posponer</button>
+      <button class="btn btn-warn" onclick="returnForCorrection()">${svg(I.refresh)}Devolver para corrección</button>`;
+  }
+}
+
+function releaseRoom(){
+  const rm=rooms.find(r=>r.id===activeRoom.id);
+  rm.verifRecord=Object.assign({}, verifDraft);
+  rm.releasedAt=Date.now();
+  rm.releasedBy=currentUser.id;
+  rm.state='liberada';
+  logEvent(rm.id,'release',`Habitación liberada · ${rm.verifRecord.conformidad}% conformidad`);
+  toast('Habitación '+rm.id+' liberada · lista para admisión');
+  goDashboard();
+}
+function returnForCorrection(){
+  const rm=rooms.find(r=>r.id===activeRoom.id);
+  rm.verifRecord=Object.assign({}, verifDraft);
+  rm.state='con_hallazgos';
+  logEvent(rm.id,'return_for_correction',`Devuelta · ${verifDraft.hallazgos.length} hallazgo(s) pendiente(s) de corrección`);
+  toast('Habitación devuelta a Servicios Generales');
+  goDashboard();
+}
+
+/* ============ TRAZABILIDAD ============ */
+function renderTrace(roomId){
+  const rm=rooms.find(r=>r.id===roomId);
+  $('barTitle').textContent='Bitácora · Hab. '+rm.id;
+  $('barSub').textContent='Trazabilidad JCI-defensible';
+  const evs=auditLog.filter(e=>e.roomId===rm.id).slice().reverse();
+  const evMap={
+    exec_open:'Apertura de registro', qr_scan:'Anclaje físico (QR)', exec_start:'Inicio de limpieza',
+    step_confirm:'Paso confirmado', incident:'Incidente reportado', photo:'Foto registrada',
+    exec_finish:'Cierre de ejecución', verif_open:'Apertura de verificación',
+    verif_finish:'Verificación completada', release:'Liberación de habitación',
+    return_for_correction:'Devuelta para corrección'
+  };
+  const items=evs.length?evs.map(e=>{
+    const u=userById(e.actor);
+    return `<div class="trace-item">
+      <div class="trace-tline"><div class="trace-dot"></div><div class="trace-bar"></div></div>
+      <div class="trace-c">
+        <div class="trace-ts">${fmtDateTime(e.ts)}</div>
+        <div class="trace-ev">${evMap[e.type]||e.type}</div>
+        <div class="trace-d">${e.detail}</div>
+        ${u?`<div class="trace-actor">${u.name} · ${ROLE_LABEL[u.role]} · ${u.code}</div>`:''}
+      </div>
+    </div>`;
+  }).join(''):`<div style="text-align:center;color:var(--gris-med);font-size:12.5px;padding:20px;">Sin eventos registrados aún para esta habitación.</div>`;
+
+  // demo seed for already-released room
+  let seedNote='';
+  if(rm.id==='301' && evs.length===0){
+    seedNote=`<p class="ribbon" style="padding-bottom:14px;"><b>Nota demo:</b> Hab. 301 fue sembrada con un ciclo completo (Ejecución + Verificación + Liberación) pero sin eventos en la bitácora porque ocurrió antes del inicio de la sesión. Realice un ciclo nuevo (Hab. 201 o 202) para ver la bitácora completa.</p>`;
+  }
+
+  content.innerHTML=`
+    <div class="card">
+      <p class="card-t">${svg(I.shield)}Estado actual</p>
+      <span class="statepill ${STATES[rm.state].cls}">${svg(STATES[rm.state].icon)}${STATES[rm.state].label}</span>
+    </div>
+    ${seedNote}
+    <p class="section-label">Línea de tiempo de eventos</p>
+    <div class="card" style="padding:6px 14px;">${items}</div>
+    <p class="ribbon">Esta es la <b>evidencia que un auditor JCI puede solicitar</b> en cualquier momento: quién, qué, cuándo, contra qué estándar. El log es <b>append-only</b>; cualquier edición posterior genera un nuevo evento, no sobrescribe el anterior.</p>`;
+}
+
+/* init */
+render();
+</script>
+</body>
+</html>
