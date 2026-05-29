@@ -76,22 +76,48 @@ needed.
 
 **Before committing application code**, run lint and tests and ensure they pass.
 
-## Recommended Stack (from spec §11 — not yet installed)
+## Recommended Stack — Cloudflare target (spec §11 — not yet installed)
 
-Confirm with the team (Edwin Martínez) before locking in. The brief recommends:
+**Platform decision (per spec §18.4, confirm with Edwin Martínez):** the app
+targets **Cloudflare** for deployment. This supersedes the brief's original
+self-hosted/Docker recommendation — see the **data-residency caveat** below.
 
-- **Next.js 15** (App Router) + **strict TypeScript**, shipped as an
-  **offline-first PWA** (rooms have inconsistent WiFi; operators must complete
-  the full flow offline and sync on reconnect).
-- **Tailwind CSS** with the Avante design tokens + **shadcn/ui** (restyled to
-  Avante) + **lucide-react** icons.
-- **React Hook Form + Zod** for forms/validation; **TanStack Query** for server
-  state; **next-pwa / Serwist** for the service worker.
-- **PostgreSQL 16+** via **Prisma**; **NextAuth.js** (Credentials, PIN hashed
-  with argon2). tRPC optional for end-to-end typing.
-- QR: `html5-qrcode`/`@zxing/browser` (scan) + `qrcode` (generation);
-  `sharp` for photo processing; S3/R2/MinIO for photo storage.
-- Self-hosted on Avante infrastructure; Docker + docker-compose.
+- **App / framework:** **Next.js 15** (App Router) + **strict TypeScript**,
+  deployed to **Cloudflare Workers** via the **OpenNext adapter**
+  (`@opennextjs/cloudflare`). The Workers runtime is `workerd`, **not Node** —
+  enable `nodejs_compat` and a recent `compatibility_date` in `wrangler.jsonc`.
+  Shipped as an **offline-first PWA** (rooms have inconsistent WiFi; operators
+  must complete the full flow offline and sync on reconnect).
+- **UI:** **Tailwind CSS** with the Avante design tokens + **shadcn/ui**
+  (restyled to Avante) + **lucide-react** icons. **React Hook Form + Zod** for
+  forms/validation; **TanStack Query** for server state; **Serwist** for the
+  service worker; client-side **IndexedDB** for offline drafts/photos.
+- **Database:** **PostgreSQL 16+** (kept for audit defensibility), accessed from
+  Workers through **Cloudflare Hyperdrive** (connection pooling/acceleration).
+  **Prisma** as ORM via the **driver adapter** `@prisma/adapter-pg` over
+  `env.HYPERDRIVE.connectionString`. Managed Postgres (Neon / Prisma Postgres /
+  self-hosted) — place it as close to es-SV as the provider allows.
+- **Auth:** **Auth.js / NextAuth** (Credentials, PIN). **Native `argon2` does
+  NOT run on Workers** — hash PINs with **argon2id via WASM (`hash-wasm`)** or
+  PBKDF2 via Web Crypto. No persistent sessions (shared devices), 30-min
+  timeout — keep short-lived sessions in **Workers KV**.
+- **Photos:** store in **Cloudflare R2** (S3-compatible). **`sharp` does NOT run
+  on Workers** — resize/optimize with **Cloudflare Images** or compress
+  client-side before upload.
+- **QR:** `html5-qrcode`/`@zxing/browser` (scan) + `qrcode` (generation) —
+  client-side, unchanged.
+- **Async / scheduled:** **Cloudflare Queues** for sync/conflict handling and
+  notification fan-out; **Cron Triggers** for daily KPI summaries.
+- **Tooling:** **Wrangler** for config/bindings/deploy. `wrangler dev` /
+  `opennextjs-cloudflare preview` for `workerd`-accurate previews; `next dev`
+  for fast iteration. Bindings: `HYPERDRIVE`, R2 bucket, KV, Queues.
+
+> **⚠️ Data-residency caveat (governance, not code).** Spec §11.1 preferred
+> self-hosting on Avante infra "for clinical-data considerations." Cloudflare is
+> public cloud with no El Salvador/LATAM region. This is defensible (photos
+> carry no PII; surfaces/equipment only — §9.8) but is a compliance decision
+> that must be signed off, ideally with the **Data Localization Suite** and R2
+> jurisdiction restrictions documented. Surface this; don't bury it.
 
 ## Domain Model (see spec §7 for full TypeScript types)
 
@@ -193,7 +219,8 @@ Scope boundaries (in/out of v1, v2 roadmap) are in §13.
 Before coding (spec §18 lists formal preconditions — PCI co-leadership, audited
 base PNTs, budget/stack sign-off, updated internal regulation). Once cleared:
 
-1. Confirm the stack with Edwin Martínez and scaffold the Next.js 15 + TS PWA.
+1. Confirm the stack with Edwin Martínez and scaffold the Next.js 15 + TS PWA
+   on Cloudflare Workers (`npm create cloudflare@latest -- --framework=next`).
 2. Add a `README.md` for human contributors and a dependency manifest.
 3. Model the domain (§7) in Prisma, enforcing the §9 rules at the DB/ORM layer.
 4. Implement the flow screen-by-screen against the prototype, then fill in the

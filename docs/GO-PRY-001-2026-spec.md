@@ -572,19 +572,39 @@ El prototipo HTML adjunto (`limpieza-trazabilidad-jci-v2.html`) implementa todos
 
 ## 11. Stack técnico recomendado
 
+> **Nota de actualización (decisión de plataforma):** esta sección fue revisada
+> para **desplegar en Cloudflare** (decisión de stack §18.4). Sustituye la
+> recomendación original de self-hosting + Docker. La justificación offline-first
+> y mobile-first se conserva intacta. Ver la **salvedad de residencia de datos**
+> en §11.1.
+
 ### 11.1 Arquitectura
 
-**Recomendación:** Next.js 15 (App Router) + TypeScript + PostgreSQL, desplegada como **PWA** (Progressive Web App) con capacidad offline-first.
+**Recomendación:** Next.js 15 (App Router) + TypeScript + PostgreSQL, desplegada como **PWA** (Progressive Web App) con capacidad offline-first, **sobre Cloudflare Workers** mediante el adaptador **OpenNext** (`@opennextjs/cloudflare`).
 
 Justificación:
 
 - **PWA mobile-first** permite instalación en pantalla de inicio de iPhone/Android sin tienda, sin proceso de aprobación, con experiencia equivalente a app nativa.
 - **Offline-first** es crítico porque las habitaciones de hospitalización en Avante tienen WiFi inconsistente. El operador debe poder completar el flujo offline y sincronizar al reconectarse.
 - **TypeScript** alinea con el roadmap de desarrollo de Avante y con Claude Code.
-- **PostgreSQL** es robusto, defensible para auditoría y soporta extensiones para auditoría JSON.
-- **API REST + tRPC** permite que el sistema se exponga eventualmente como módulo del HIS futuro o se integre con Odoo.
+- **PostgreSQL** es robusto, defensible para auditoría y soporta extensiones para auditoría JSON. Se mantiene como base de datos y se conecta desde Workers vía **Hyperdrive** (pooling/aceleración).
+- **Cloudflare Workers + R2 + Hyperdrive** dan red global, despliegue sin servidores que administrar, y almacenamiento de objetos S3-compatible, conservando Postgres para la defensibilidad de auditoría.
+- **API REST** (Next.js Route Handlers sobre Workers) permite que el sistema se exponga eventualmente como módulo del HIS futuro o se integre con Odoo.
 
-### 11.2 Stack específico
+> **⚠️ Salvedad de residencia de datos.** La versión original prefería
+> self-hosting en infraestructura Avante "por consideraciones de datos clínicos".
+> Cloudflare es nube pública sin región en El Salvador/LATAM cercana. Es
+> defendible porque las fotos no contienen PII (solo superficies y equipamiento,
+> §9.8), pero la decisión debe quedar firmada por Gerencia/PCI, documentando el
+> uso del **Data Localization Suite** y restricciones de jurisdicción en R2.
+
+### 11.2 Stack específico (Cloudflare)
+
+> **Restricción de runtime:** Workers corre en `workerd`, **no en Node**. Habilitar
+> `nodejs_compat` y un `compatibility_date` reciente en `wrangler.jsonc`. Dos
+> piezas del stack original **no corren en Workers** y se reemplazan: `sharp`
+> (binario nativo → Cloudflare Images o compresión en cliente) y `argon2` nativo
+> (→ argon2id vía WASM `hash-wasm`, o PBKDF2 con Web Crypto).
 
 ```
 Frontend / App:
@@ -595,29 +615,32 @@ Frontend / App:
   - lucide-react para iconografía
   - React Hook Form + Zod para validación
   - TanStack Query para estado server
-  - next-pwa o Serwist para service worker / offline
+  - Serwist para service worker / offline; IndexedDB para borradores offline
 
-Backend / API:
+Plataforma / Backend (Cloudflare):
+  - Cloudflare Workers como runtime (adaptador OpenNext @opennextjs/cloudflare)
   - Next.js Route Handlers (API en el mismo proyecto)
-  - Prisma ORM
-  - PostgreSQL 16+
-  - NextAuth.js (Credentials provider con PIN hasheado en argon2)
-  - tRPC opcional para tipado end-to-end
+  - Prisma ORM con driver adapter @prisma/adapter-pg sobre Hyperdrive
+  - PostgreSQL 16+ gestionado (Neon / Prisma Postgres / self-hosted), vía Hyperdrive
+  - Auth.js / NextAuth (Credentials, PIN hasheado con argon2id vía hash-wasm)
+  - Sesiones de corta duración en Workers KV (sin sesión persistente)
 
 Funcionalidades específicas:
-  - html5-qrcode o @zxing/browser para escaneo de QR
+  - html5-qrcode o @zxing/browser para escaneo de QR (cliente)
   - qrcode para generación de QR de habitaciones
-  - sharp para procesamiento de fotos del lado servidor
-  - S3 / R2 / MinIO para almacenamiento de fotos
+  - Cloudflare Images (o compresión en cliente) para procesamiento de fotos
+  - Cloudflare R2 para almacenamiento de fotos (S3-compatible)
+  - Cloudflare Queues para sincronización/conflictos y notificaciones
+  - Cron Triggers para resúmenes diarios de KPIs
 
 Observabilidad:
-  - Pino para logging estructurado
-  - OpenTelemetry para trazas (opcional v2)
+  - Workers Logs / observability habilitada en wrangler
+  - Logging estructurado; OpenTelemetry para trazas (opcional v2)
 
-Deployment:
-  - Self-hosted en infraestructura Avante (preferido sobre cloud público
-    por consideraciones de datos clínicos, aunque las fotos no contengan PII)
-  - Docker + docker-compose para dev y prod
+Deployment / tooling:
+  - Wrangler (config, bindings, deploy). Bindings: HYPERDRIVE, R2, KV, Queues
+  - `wrangler dev` / `opennextjs-cloudflare preview` para preview fiel a workerd
+  - `next dev` para iteración rápida en desarrollo
 ```
 
 ### 11.3 Capacidad offline-first (crítico)
