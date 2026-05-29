@@ -1,0 +1,4 @@
+# Secrets for `wrangler dev` / `opennextjs-cloudflare preview` (workerd runtime).
+# Copy to .dev.vars (gitignored) and fill in. Bindings (HYPERDRIVE, R2, KV,
+# Queues) are configured in wrangler.jsonc, not here.
+NEXTAUTH_SECRET="change-me"

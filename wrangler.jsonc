@@ -1,0 +1,48 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "limpieza-jci",
+  "main": ".open-next/worker.js",
+  // Must be >= 2024-09-23 for @opennextjs/cloudflare + nodejs_compat.
+  "compatibility_date": "2025-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+
+  // --- Bindings (provision real IDs with Wrangler before deploying) ---
+
+  // PostgreSQL via Hyperdrive (connection pooling/acceleration).
+  // Create with: wrangler hyperdrive create limpieza-jci-db --connection-string="postgres://..."
+  // Then paste the returned id below and uncomment.
+  // "hyperdrive": [
+  //   { "binding": "HYPERDRIVE", "id": "<HYPERDRIVE_CONFIG_ID>" }
+  // ],
+
+  // R2 bucket for cleaning photos (surfaces/equipment only — see spec §9.8).
+  // Create with: wrangler r2 bucket create limpieza-jci-fotos
+  // "r2_buckets": [
+  //   { "binding": "FOTOS", "bucket_name": "limpieza-jci-fotos" }
+  // ],
+
+  // Workers KV for short-lived sessions (shared devices, 30-min timeout — §4).
+  // Create with: wrangler kv namespace create SESSIONS
+  // "kv_namespaces": [
+  //   { "binding": "SESSIONS", "id": "<KV_NAMESPACE_ID>" }
+  // ],
+
+  // Queues for offline sync / conflict handling and notification fan-out (§11.3, §12.3).
+  // Create with: wrangler queues create limpieza-jci-sync
+  // "queues": {
+  //   "producers": [{ "binding": "SYNC_QUEUE", "queue": "limpieza-jci-sync" }],
+  //   "consumers": [{ "queue": "limpieza-jci-sync" }]
+  // },
+
+  // Daily KPI summary (spec §8.6 / §12.3). Runs 06:00 UTC ≈ 00:00 America/El_Salvador.
+  "triggers": {
+    "crons": ["0 6 * * *"]
+  }
+}

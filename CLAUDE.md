@@ -3,12 +3,11 @@
 This file provides guidance to Claude Code (and other AI assistants) when working
 with code in this repository.
 
-> **Status: Planning / pre-scaffold.**
-> The repository currently holds the **development brief** and an **interactive
-> visual prototype** — the source of truth for what gets built — but the
-> production application has **not been scaffolded yet**. When you scaffold the
-> app, update the "Repository Structure" and "Development Workflow" sections to
-> reflect reality, and remove this notice.
+> **Status: Scaffolded (baseline).**
+> The Next.js 15 + Cloudflare (OpenNext) app is scaffolded and builds, with the
+> domain modeled in Prisma and the Avante design tokens wired in. The operational
+> flow (login → dashboard → ejecución → verificación → bitácora) is **not yet
+> implemented** — build it screen-by-screen against the prototype and spec.
 
 ## Project Overview
 
@@ -38,14 +37,29 @@ spec governs.
 ```
 .
 ├── docs/
-│   └── GO-PRY-001-2026-spec.md          # Authoritative development brief (es). SOURCE OF TRUTH.
+│   └── GO-PRY-001-2026-spec.md           # Authoritative development brief (es). SOURCE OF TRUTH.
 ├── prototype/
 │   └── limpieza-trazabilidad-jci-v2.html # Single-file vanilla-JS visual + flow prototype.
+├── prisma/
+│   └── schema.prisma                     # Domain model (§7) + data rules (§7.3).
+├── src/
+│   ├── app/                              # Next.js App Router (layout es-SV, globals.css w/ Avante tokens).
+│   └── lib/
+│       └── db.ts                         # PrismaClient over Hyperdrive (per-request, workerd).
+├── public/                               # Static assets.
+├── next.config.ts                        # Next config + initOpenNextCloudflareForDev().
+├── open-next.config.ts                   # OpenNext (Cloudflare) adapter config.
+├── wrangler.jsonc                        # Workers config + bindings (HYPERDRIVE/R2/KV/Queues/cron).
+├── cloudflare-env.d.ts                   # Types for the Workers bindings (regen: npm run cf-typegen).
+├── .env.example / .dev.vars.example      # Local DB URL / workerd secrets templates.
+├── README.md                             # Human-facing setup & commands.
 └── CLAUDE.md                             # This file.
 ```
 
-The production app (`src/`, `tests/`, etc.) does not exist yet. Once scaffolded,
-document its real layout here and keep this tree in sync.
+Tests (`tests/`) and the operational screens/components are not built yet. Keep
+this tree in sync as you add them. **Tailwind v4** (tokens in `src/app/globals.css`,
+not a `tailwind.config`). The Prisma client is generated to `node_modules` on
+`postinstall` (`prisma generate`).
 
 ### The prototype (`prototype/limpieza-trazabilidad-jci-v2.html`)
 
@@ -59,28 +73,37 @@ component, match the prototype unless the spec says otherwise.
 
 ## Development Workflow
 
-> **No build tooling exists yet.** The commands below are the *recommended*
-> targets from the spec (§11). Fill in and verify the real commands when the
-> project is scaffolded, then update this table.
+| Task                          | Command               |
+| ----------------------------- | --------------------- |
+| Install deps (runs `generate`)| `npm install`         |
+| Run dev server (fast)         | `npm run dev`         |
+| Build (Next.js)               | `npm run build`       |
+| Lint                          | `npm run lint`        |
+| Preview in `workerd` (OpenNext)| `npm run preview`    |
+| Deploy to Cloudflare          | `npm run deploy`      |
+| Generate Prisma client        | `npm run db:generate` |
+| Dev migration                 | `npm run db:migrate`  |
+| Regenerate binding types      | `npm run cf-typegen`  |
 
-| Task           | Command (target, fill in when scaffolded) |
-| -------------- | ----------------------------------------- |
-| Install deps   | `npm install`                             |
-| Run dev server | `npm run dev`                             |
-| Run tests      | `npm test`                                |
-| Lint           | `npm run lint`                            |
-| Build          | `npm run build`                           |
+Tests are not set up yet (spec §14 targets ≥80% domain coverage). When you add a
+runner, wire it as `npm test` and update this table.
 
-To view the prototype today, just open the HTML file in a browser — no server
-needed.
+- `npm run dev` uses the Next.js dev server (fast). For `workerd`-accurate
+  behavior (bindings, runtime quirks), use `npm run preview`.
+- Set `DATABASE_URL` (copy `.env.example` → `.env`) for local Prisma/`next dev`;
+  in production the connection comes from the `HYPERDRIVE` binding.
+- To view the prototype, just open the HTML file in a browser — no server needed.
 
-**Before committing application code**, run lint and tests and ensure they pass.
+**Before committing application code**, run `npm run lint` and the build (and
+tests, once they exist) and ensure they pass.
 
-## Recommended Stack — Cloudflare target (spec §11 — not yet installed)
+## Stack — Cloudflare target (spec §11)
 
 **Platform decision (per spec §18.4, confirm with Edwin Martínez):** the app
 targets **Cloudflare** for deployment. This supersedes the brief's original
 self-hosted/Docker recommendation — see the **data-residency caveat** below.
+The **baseline is installed** (Next.js 15.5 pinned for OpenNext compatibility,
+Tailwind v4, Prisma); the items below describe what's wired vs. still to add.
 
 - **App / framework:** **Next.js 15** (App Router) + **strict TypeScript**,
   deployed to **Cloudflare Workers** via the **OpenNext adapter**
@@ -168,9 +191,10 @@ soft-delete (`deletedAt`) for Room and User — never hard-delete.
 
 - **Typography:** `'Century Gothic', 'CenturyGothic', 'AppleGothic', 'Questrial',
   sans-serif`.
-- **Design tokens:** use the CSS variables defined in the prototype's `:root`
-  (neutrals dominate the chrome; institutional accents `--azul-marino`,
-  `--turquesa`, `--violeta` for data/hierarchy only).
+- **Design tokens:** the prototype's `:root` variables are wired into
+  `src/app/globals.css` (and exposed to Tailwind v4 via `@theme inline`, e.g.
+  `text-azul-marino`, `bg-gris-bg`). Neutrals dominate the chrome; institutional
+  accents `--azul-marino`, `--turquesa`, `--violeta` for data/hierarchy only.
 - **Functional traffic-light colors** (`--verde`/`--ambar`/`--rojo`/`--rojo2`)
   are allowed **only** on interactive state buttons (Conforme/No conforme),
   finding severities, and room-state chips — a deliberate, documented *poka-yoke*
@@ -194,8 +218,7 @@ Scope boundaries (in/out of v1, v2 roadmap) are in §13.
 
 ## Git & Branching Conventions
 
-- **Default branch:** `main`. (Note: as of writing, no `main` exists on the
-  remote yet — the first commit there will create it.)
+- **Default branch:** `main`.
 - **Feature branches:** `feature/<short-desc>`, `fix/<short-desc>`, or
   `claude/<short-desc>` for AI-assisted work.
 - **Commits:** clear, imperative mood (e.g. "Add execution timer").
@@ -207,21 +230,28 @@ Scope boundaries (in/out of v1, v2 roadmap) are in §13.
   The prototype governs visual/flow detail. Don't contradict either silently.
 - **Don't weaken the §9 business rules** to make something easier — they are the
   whole point of the system. If a rule blocks you, surface it; don't bypass it.
-- **Don't invent files, frameworks, or commands** that don't exist yet. The app
-  is unscaffolded; verify the current state before referencing it.
-- When you scaffold the app or add tooling, **update this file in the same
-  change** so it always reflects reality.
+- **Don't invent files, frameworks, or commands.** Verify the current state
+  before referencing it. **Next is pinned to 15.x** for OpenNext/Workers
+  compatibility — do not bump to 16 without verifying adapter support.
+- When you add tooling or change structure, **update this file (and `README.md`)
+  in the same change** so they always reflect reality.
 - Prefer conventions already present in the prototype and spec over introducing
   new ones. Keep this file concise and current.
 
 ## Next Steps
 
-Before coding (spec §18 lists formal preconditions — PCI co-leadership, audited
-base PNTs, budget/stack sign-off, updated internal regulation). Once cleared:
+Governance preconditions still apply before production (spec §18 — PCI
+co-leadership, audited base PNTs, budget/stack sign-off, updated internal
+regulation) and the **data-residency sign-off** for Cloudflare (§11.1).
 
-1. Confirm the stack with Edwin Martínez and scaffold the Next.js 15 + TS PWA
-   on Cloudflare Workers (`npm create cloudflare@latest -- --framework=next`).
-2. Add a `README.md` for human contributors and a dependency manifest.
-3. Model the domain (§7) in Prisma, enforcing the §9 rules at the DB/ORM layer.
-4. Implement the flow screen-by-screen against the prototype, then fill in the
-   "Repository Structure" and "Development Workflow" sections above.
+Engineering, building on the current scaffold:
+
+1. Provision Cloudflare bindings and uncomment them in `wrangler.jsonc`
+   (`HYPERDRIVE`, R2 `FOTOS`, KV `SESSIONS`, `SYNC_QUEUE`); run an initial
+   `prisma migrate` against the Postgres behind Hyperdrive.
+2. Add Auth.js (Credentials/PIN, argon2id via `hash-wasm`), KV-backed sessions,
+   and the §9 enforcement (role separation, append-only audit, state machine).
+3. Add the UI kit (shadcn/ui restyled to Avante, lucide-react) and the base
+   components (§10.4), then the PWA service worker (Serwist) + IndexedDB drafts.
+4. Implement the flow screen-by-screen against the prototype, seed §15 data, and
+   set up a test runner targeting ≥80% domain coverage (§14).
