@@ -44,8 +44,11 @@ spec governs.
 │   └── schema.prisma                     # Domain model (§7) + data rules (§7.3).
 ├── src/
 │   ├── app/                              # Next.js App Router (layout es-SV, globals.css w/ Avante tokens).
+│   ├── domain/                           # Pure, framework-free §9 rules (state machine, role sep, audit, decisions).
 │   └── lib/
 │       └── db.ts                         # PrismaClient over Hyperdrive (per-request, workerd).
+├── tests/
+│   └── domain/                           # Vitest unit tests for src/domain (spec §14: ≥80% coverage).
 ├── public/                               # Static assets.
 ├── next.config.ts                        # Next config + initOpenNextCloudflareForDev().
 ├── open-next.config.ts                   # OpenNext (Cloudflare) adapter config.
@@ -79,14 +82,16 @@ component, match the prototype unless the spec says otherwise.
 | Run dev server (fast)         | `npm run dev`         |
 | Build (Next.js)               | `npm run build`       |
 | Lint                          | `npm run lint`        |
+| Run tests                     | `npm test`            |
+| Tests + coverage              | `npm run test:coverage` |
 | Preview in `workerd` (OpenNext)| `npm run preview`    |
 | Deploy to Cloudflare          | `npm run deploy`      |
 | Generate Prisma client        | `npm run db:generate` |
 | Dev migration                 | `npm run db:migrate`  |
 | Regenerate binding types      | `npm run cf-typegen`  |
 
-Tests are not set up yet (spec §14 targets ≥80% domain coverage). When you add a
-runner, wire it as `npm test` and update this table.
+Tests use **Vitest** (`tests/`, alias `@/` → `src/`). Coverage is gated at ≥80%
+on `src/domain` (spec §14). Keep new domain logic pure and covered.
 
 - `npm run dev` uses the Next.js dev server (fast). For `workerd`-accurate
   behavior (bindings, runtime quirks), use `npm run preview`.
@@ -250,8 +255,9 @@ Engineering, building on the current scaffold:
    (`HYPERDRIVE`, R2 `FOTOS`, KV `SESSIONS`, `SYNC_QUEUE`); run an initial
    `prisma migrate` against the Postgres behind Hyperdrive.
 2. Add Auth.js (Credentials/PIN, argon2id via `hash-wasm`), KV-backed sessions,
-   and the §9 enforcement (role separation, append-only audit, state machine).
+   and wire the **`src/domain` §9 rules** (already built & tested) into the API
+   request path (role separation, append-only audit, state machine).
 3. Add the UI kit (shadcn/ui restyled to Avante, lucide-react) and the base
    components (§10.4), then the PWA service worker (Serwist) + IndexedDB drafts.
-4. Implement the flow screen-by-screen against the prototype, seed §15 data, and
-   set up a test runner targeting ≥80% domain coverage (§14).
+4. Implement the flow screen-by-screen against the prototype and seed §15 data,
+   extending the Vitest domain suite as rules grow (≥80% coverage, §14).
