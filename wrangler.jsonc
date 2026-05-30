@@ -13,29 +13,27 @@
     "enabled": true
   },
 
-  // --- Bindings (provision real IDs with Wrangler before deploying) ---
+  // --- Bindings (provisioned in account 4cf0b376…) ---
 
-  // PostgreSQL via Hyperdrive (connection pooling/acceleration).
-  // Create with: wrangler hyperdrive create limpieza-jci-db --connection-string="postgres://..."
-  // Then paste the returned id below and uncomment.
-  // "hyperdrive": [
-  //   { "binding": "HYPERDRIVE", "id": "<HYPERDRIVE_CONFIG_ID>" }
-  // ],
+  // Cloudflare D1 (serverless SQLite). Schema/seed applied; see prisma/schema.prisma.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "limpieza-jci-db",
+      "database_id": "d2aebbba-18e4-40da-99f6-f1f58a243fed"
+    }
+  ],
 
   // R2 bucket for cleaning photos (surfaces/equipment only — see spec §9.8).
-  // Create with: wrangler r2 bucket create limpieza-jci-fotos
-  // "r2_buckets": [
-  //   { "binding": "FOTOS", "bucket_name": "limpieza-jci-fotos" }
-  // ],
+  "r2_buckets": [{ "binding": "FOTOS", "bucket_name": "limpieza-jci-fotos" }],
 
   // Workers KV for short-lived sessions (shared devices, 30-min timeout — §4).
-  // Create with: wrangler kv namespace create SESSIONS
-  // "kv_namespaces": [
-  //   { "binding": "SESSIONS", "id": "<KV_NAMESPACE_ID>" }
-  // ],
+  "kv_namespaces": [
+    { "binding": "SESSIONS", "id": "2af43ebfb9b6427fa3b29b18789fae4f" }
+  ],
 
-  // Queues for offline sync / conflict handling and notification fan-out (§11.3, §12.3).
-  // Create with: wrangler queues create limpieza-jci-sync
+  // Queues for offline sync / conflict handling and notification fan-out
+  // (§11.3, §12.3) require the Workers Paid plan — enable then uncomment:
   // "queues": {
   //   "producers": [{ "binding": "SYNC_QUEUE", "queue": "limpieza-jci-sync" }],
   //   "consumers": [{ "queue": "limpieza-jci-sync" }]

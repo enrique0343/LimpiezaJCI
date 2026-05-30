@@ -7,8 +7,10 @@ const nextConfig: NextConfig = {
 
 export default nextConfig;
 
-// Enable the Cloudflare Workers bindings (Hyperdrive, R2, KV, Queues) during
-// `next dev`, so server code can read them through getCloudflareContext().
-// Safe no-op when not running under the OpenNext dev server.
+// Expose the Cloudflare Workers bindings (D1, R2, KV) during `next dev` so
+// server code can read them through getCloudflareContext(). Only in dev — during
+// `next build` we must not boot the workerd/Miniflare runtime.
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();
+if (process.env.NODE_ENV === "development") {
+  initOpenNextCloudflareForDev();
+}

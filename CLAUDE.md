@@ -8,7 +8,7 @@ with code in this repository.
 > pure + tested; the Avante UI kit is built; and the full operational flow
 > (login → dashboard → ejecución → verificación → bitácora) runs at `/` over
 > **seed data with in-memory state** (no live DB/auth yet). Remaining for
-> production: real Auth.js/KV sessions, Prisma/Hyperdrive persistence, the sync
+> production: real Auth.js/KV sessions, full Prisma/D1 persistence, the sync
 > layer (Queues/IndexedDB), PWA/offline, and PDF export.
 
 ## Project Overview
@@ -52,7 +52,7 @@ spec governs.
 │   ├── domain/                           # Pure, framework-free §9 rules (state machine, role sep, audit, decisions).
 │   └── lib/
 │       ├── cn.ts                         # className joiner.
-│       ├── db.ts                         # PrismaClient over Hyperdrive (per-request, workerd).
+│       ├── db.ts                         # PrismaClient over Cloudflare D1 (per-request, workerd).
 │       ├── types.ts                      # Runtime (demo) types mirroring §7.
 │       ├── seed.ts                       # Demo seed data (§15): users, rooms, protocols, insumos, verif template.
 │       ├── format.ts                     # es-SV time formatting (UTC→America/El_Salvador for display).
@@ -62,7 +62,7 @@ spec governs.
 ├── public/                               # Static assets.
 ├── next.config.ts                        # Next config + initOpenNextCloudflareForDev().
 ├── open-next.config.ts                   # OpenNext (Cloudflare) adapter config.
-├── wrangler.jsonc                        # Workers config + bindings (HYPERDRIVE/R2/KV/Queues/cron).
+├── wrangler.jsonc                        # Workers config + bindings (D1/R2/KV + cron; Queues paid).
 ├── cloudflare-env.d.ts                   # Types for the Workers bindings (regen: npm run cf-typegen).
 ├── .env.example / .dev.vars.example      # Local DB URL / workerd secrets templates.
 ├── README.md                             # Human-facing setup & commands.
@@ -73,7 +73,7 @@ The full operational flow (login → dashboard → ejecución → verificación 
 bitácora) is implemented at `/` as a **client-side demo** over seed data:
 `src/lib/store.tsx` holds the flow state and enforces the §9 rules by calling
 `src/domain` (no inline rule logic), logging every step to an append-only audit
-array. **Persistence is in-memory only** — wire it to Prisma/Hyperdrive (and
+array. **Persistence is in-memory only** — wire it to Prisma/D1 (and
 real auth/sessions) behind the same shapes for production. Keep this tree in
 sync as you add them. **Tailwind v4** (tokens in `src/app/globals.css`,
 not a `tailwind.config`). The Prisma client is generated to `node_modules` on
@@ -111,7 +111,7 @@ on `src/domain` (spec §14). Keep new domain logic pure and covered.
 - `npm run dev` uses the Next.js dev server (fast). For `workerd`-accurate
   behavior (bindings, runtime quirks), use `npm run preview`.
 - Set `DATABASE_URL` (copy `.env.example` → `.env`) for local Prisma/`next dev`;
-  in production the connection comes from the `HYPERDRIVE` binding.
+  in production the database is Cloudflare D1 via the `DB` binding.
 - To view the prototype, just open the HTML file in a browser — no server needed.
 
 **Before committing application code**, run `npm run lint` and the build (and
@@ -135,11 +135,13 @@ Tailwind v4, Prisma); the items below describe what's wired vs. still to add.
   (restyled to Avante) + **lucide-react** icons. **React Hook Form + Zod** for
   forms/validation; **TanStack Query** for server state; **Serwist** for the
   service worker; client-side **IndexedDB** for offline drafts/photos.
-- **Database:** **PostgreSQL 16+** (kept for audit defensibility), accessed from
-  Workers through **Cloudflare Hyperdrive** (connection pooling/acceleration).
-  **Prisma** as ORM via the **driver adapter** `@prisma/adapter-pg` over
-  `env.HYPERDRIVE.connectionString`. Managed Postgres (Neon / Prisma Postgres /
-  self-hosted) — place it as close to es-SV as the provider allows.
+- **Database:** **Cloudflare D1** (serverless SQLite) — fully native, no external
+  DB. **Prisma** as ORM via the **driver adapter** `@prisma/adapter-d1` over the
+  `DB` binding. SQLite has no enums/scalar-lists, so enum fields are `String`
+  (constrained by `src/domain/types.ts`) and lists/structs are `Json`. Schema +
+  §15 seed are applied to the live D1 `limpieza-jci-db`
+  (`d2aebbba-18e4-40da-99f6-f1f58a243fed`). Migrations: `prisma migrate diff`
+  → apply SQL to D1 (`wrangler d1 execute` or the dashboard).
 - **Auth:** **Auth.js / NextAuth** (Credentials, PIN). **Native `argon2` does
   NOT run on Workers** — hash PINs with **argon2id via WASM (`hash-wasm`)** or
   PBKDF2 via Web Crypto. No persistent sessions (shared devices), 30-min
@@ -153,7 +155,7 @@ Tailwind v4, Prisma); the items below describe what's wired vs. still to add.
   notification fan-out; **Cron Triggers** for daily KPI summaries.
 - **Tooling:** **Wrangler** for config/bindings/deploy. `wrangler dev` /
   `opennextjs-cloudflare preview` for `workerd`-accurate previews; `next dev`
-  for fast iteration. Bindings: `HYPERDRIVE`, R2 bucket, KV, Queues.
+  for fast iteration. Bindings: `DB` (D1), `FOTOS` (R2), `SESSIONS` (KV); Queues on the paid plan.
 
 > **⚠️ Data-residency caveat (governance, not code).** Spec §11.1 preferred
 > self-hosting on Avante infra "for clinical-data considerations." Cloudflare is
@@ -266,13 +268,15 @@ Governance preconditions still apply before production (spec §18 — PCI
 co-leadership, audited base PNTs, budget/stack sign-off, updated internal
 regulation) and the **data-residency sign-off** for Cloudflare (§11.1).
 
-Done so far: scaffold, pure+tested `src/domain`, Avante UI kit, and the full
-demo flow at `/` over seed data (in-memory). To productionize:
+Done so far: scaffold, pure+tested `src/domain`, Avante UI kit, the full demo
+flow at `/` over seed data (in-memory), and **provisioned Cloudflare resources**
+— D1 `limpieza-jci-db` (schema + §15 seed applied), R2 `limpieza-jci-fotos`, KV
+`limpieza-jci-sessions`, all bound in `wrangler.jsonc`; `/api/health` reads D1.
+To productionize:
 
-1. **Persistence:** provision Cloudflare bindings and uncomment them in
-   `wrangler.jsonc` (`HYPERDRIVE`, R2 `FOTOS`, KV `SESSIONS`, `SYNC_QUEUE`); run
-   `prisma migrate`; replace the in-memory store with API routes that read/write
-   Prisma (keep enforcing rules via `src/domain`) and store photos in R2.
+1. **Persistence:** replace the in-memory store with API routes / server actions
+   that read/write D1 via `getPrisma()` (keep enforcing rules through
+   `src/domain`) and store photos in R2. Queues need the Workers Paid plan.
 2. **Auth:** real Auth.js (Credentials/PIN, argon2id via `hash-wasm`) + KV
    sessions, replacing the demo PIN check in `src/lib/seed.ts`.
 3. **Offline/PWA:** Serwist service worker + IndexedDB drafts; sync via Queues

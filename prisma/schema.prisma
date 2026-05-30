@@ -1,89 +1,39 @@
 // Domain model for LimpiezaJCI (GO-PRY-001-2026). Mirrors spec §7.
 //
+// Target: Cloudflare D1 (serverless SQLite) via @prisma/adapter-d1.
+// SQLite has no native enums or scalar lists, so:
+//  - enum-typed fields are String, constrained to the union types in
+//    src/domain/types.ts and validated in code;
+//  - list/structured fields use Json.
+//
 // Data rules (spec §7.3, NON-NEGOTIABLE):
 //  - FKs use onDelete: Restrict — never cascade-delete (the audit log keeps
 //    references even to retired entities).
 //  - Timestamps are stored in UTC (DateTime). Convert to America/El_Salvador
 //    only for display.
 //  - Soft-delete (deletedAt) for Room and User — never hard-delete.
-//  - AuditEvent is append-only: the application/ORM layer must reject updates;
-//    a correction is a NEW event with prevEventId pointing at the original
-//    (spec §9.7).
+//  - AuditEvent is append-only: the application layer must reject updates; a
+//    correction is a NEW event with prevEventId pointing at the original (§9.7).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  operador
-  supervisor
-  pci
-  gerencia
-}
-
-enum RoomState {
-  pendiente
-  en_limpieza
-  pend_verificacion
-  con_hallazgos
-  liberada
-}
-
-enum ProtocolKey {
-  rutina
-  terminal
-  aislamiento
-  altoriesgo
-}
-
-enum Severity {
-  menor
-  mayor
-  critico
-}
-
-enum VerifItemType {
-  L // Limpieza
-  M // Mantenimiento
-}
-
-enum AuditEventType {
-  login
-  logout
-  exec_open
-  qr_scan
-  protocol_selected
-  insumos_selected
-  exec_start
-  step_confirm
-  incident
-  photo
-  exec_finish
-  exec_cancel
-  verif_open
-  verif_finish
-  release
-  return_for_correction
-  protocol_changed
-  room_state_change
-  sync_conflict
-}
-
 model User {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   fullName  String
   initials  String
-  code      String   @unique // SG-014, PCI-003, etc.
-  role      UserRole
+  code      String    @unique // SG-014, PCI-003, etc.
+  role      String // UserRole: operador | supervisor | pci | gerencia
   area      String
   pinHash   String // argon2id (hash-wasm) — never the raw PIN
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
   deletedAt DateTime? // soft-delete
 
   executions    ExecutionRecord[]
@@ -92,17 +42,17 @@ model User {
 }
 
 model Room {
-  id                   String      @id // '201', 'UCI-1', etc.
+  id                   String    @id // '201', 'UCI-1', etc.
   tipo                 String
   piso                 String
-  qrCode               String      @unique
-  highRisk             Boolean     @default(false)
-  state                RoomState   @default(pendiente)
+  qrCode               String    @unique
+  highRisk             Boolean   @default(false)
+  state                String    @default("pendiente") // RoomState
   motivo               String?
   motivoSetAt          DateTime?
-  suggestedProtocolKey ProtocolKey?
+  suggestedProtocolKey String? // ProtocolKey
   lastReleaseAt        DateTime?
-  createdAt            DateTime    @default(now())
+  createdAt            DateTime  @default(now())
   deletedAt            DateTime? // soft-delete
 
   executions    ExecutionRecord[]
@@ -111,29 +61,29 @@ model Room {
 }
 
 model Protocol {
-  key              ProtocolKey @id
-  code             String // 'PNT-LIM-001'
-  version          String // 'v2.1'
-  name             String
-  norm             String
-  estimatedMinutes Int
-  photoRequired    Boolean     @default(false)
-  photoSlots       String[]
-  steps            Json // [{ idx, label }]
-  requiresPciToRelease Boolean @default(false)
-  active           Boolean     @default(true)
-  effectiveFrom    DateTime    @default(now())
+  key                  String   @id // ProtocolKey
+  code                 String // 'PNT-LIM-001'
+  version              String // 'v2.1'
+  name                 String
+  norm                 String
+  estimatedMinutes     Int
+  photoRequired        Boolean  @default(false)
+  photoSlots           Json // string[]
+  steps                Json // [{ idx, label }]
+  requiresPciToRelease Boolean  @default(false)
+  active               Boolean  @default(true)
+  effectiveFrom        DateTime @default(now())
 
   @@unique([code, version])
 }
 
 model Insumo {
-  gtin      String   @id // GS1 GTIN
+  gtin      String    @id // GS1 GTIN
   name      String
   tipo      String // 'desinfectante' | 'limpiador' | 'epp' | 'otro'
   lot       String
   dilution  String?
-  active    Boolean  @default(true)
+  active    Boolean   @default(true)
   expiresAt DateTime?
 }
 
@@ -177,21 +127,21 @@ model VerificationRecord {
   verifier  User            @relation(fields: [verifierId], references: [id], onDelete: Restrict)
 }
 
-// Append-only. No updates allowed at the ORM/DB layer (spec §9.7).
+// Append-only. No updates allowed at the application layer (spec §9.7).
 model AuditEvent {
-  id          String         @id @default(cuid())
-  ts          DateTime       @default(now())
+  id          String   @id @default(cuid())
+  ts          DateTime @default(now())
   roomId      String?
   actorId     String? // non-null for user actions; 'system' events flagged via isSystem
-  isSystem    Boolean        @default(false)
-  type        AuditEventType
+  isSystem    Boolean  @default(false)
+  type        String // AuditEventType
   detail      String
   payload     Json?
   prevEventId String? // correction chain → original event
 
-  room      Room?       @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  actor     User?       @relation(fields: [actorId], references: [id], onDelete: Restrict)
-  prevEvent AuditEvent? @relation("Corrections", fields: [prevEventId], references: [id], onDelete: Restrict)
+  room        Room?        @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  actor       User?        @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  prevEvent   AuditEvent?  @relation("Corrections", fields: [prevEventId], references: [id], onDelete: Restrict)
   corrections AuditEvent[] @relation("Corrections")
 
   @@index([roomId, ts])
@@ -199,10 +149,10 @@ model AuditEvent {
 }
 
 model VerificationTemplate {
-  code               String      @id // 'PVT-LIM-001'
-  version            String
-  applicableProtocols ProtocolKey[]
-  areas              Json // [{ name, items: [{ id, label, type }] }]
+  code                String @id // 'PVT-LIM-001'
+  version             String
+  applicableProtocols Json // ProtocolKey[]
+  areas               Json // [{ name, items: [{ id, label, type }] }]
 
   @@unique([code, version])
 }
