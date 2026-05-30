@@ -3,11 +3,13 @@
 This file provides guidance to Claude Code (and other AI assistants) when working
 with code in this repository.
 
-> **Status: Scaffolded (baseline).**
-> The Next.js 15 + Cloudflare (OpenNext) app is scaffolded and builds, with the
-> domain modeled in Prisma and the Avante design tokens wired in. The operational
-> flow (login → dashboard → ejecución → verificación → bitácora) is **not yet
-> implemented** — build it screen-by-screen against the prototype and spec.
+> **Status: Demo flow implemented (in-memory).**
+> Next.js 15 + Cloudflare (OpenNext) scaffold builds; the domain (§9 rules) is
+> pure + tested; the Avante UI kit is built; and the full operational flow
+> (login → dashboard → ejecución → verificación → bitácora) runs at `/` over
+> **seed data with in-memory state** (no live DB/auth yet). Remaining for
+> production: real Auth.js/KV sessions, Prisma/Hyperdrive persistence, the sync
+> layer (Queues/IndexedDB), PWA/offline, and PDF export.
 
 ## Project Overview
 
@@ -43,12 +45,18 @@ spec governs.
 ├── prisma/
 │   └── schema.prisma                     # Domain model (§7) + data rules (§7.3).
 ├── src/
-│   ├── app/                              # Next.js App Router (layout es-SV, globals.css w/ Avante tokens, /kit showcase).
-│   ├── components/ui/                    # Avante UI kit (§10.4): Button, Card, StatePill, Badge, StepBlock, Stepper, Timer, Modal, PhotoSlot, Toast.
+│   ├── app/                              # Next.js App Router. `/` = full demo flow; `/kit` = UI kit showcase.
+│   ├── components/
+│   │   ├── ui/                           # Avante UI kit (§10.4): Button, Card, StatePill, Badge, StepBlock, Stepper, Timer, Modal, PhotoSlot, Toast.
+│   │   └── screens/                      # Operational screens: shell, login, dashboard, execution, verification, trace, router.
 │   ├── domain/                           # Pure, framework-free §9 rules (state machine, role sep, audit, decisions).
 │   └── lib/
 │       ├── cn.ts                         # className joiner.
-│       └── db.ts                         # PrismaClient over Hyperdrive (per-request, workerd).
+│       ├── db.ts                         # PrismaClient over Hyperdrive (per-request, workerd).
+│       ├── types.ts                      # Runtime (demo) types mirroring §7.
+│       ├── seed.ts                       # Demo seed data (§15): users, rooms, protocols, insumos, verif template.
+│       ├── format.ts                     # es-SV time formatting (UTC→America/El_Salvador for display).
+│       └── store.tsx                     # Client AppProvider: flow state + §9 enforcement + audit logging.
 ├── tests/
 │   └── domain/                           # Vitest unit tests for src/domain (spec §14: ≥80% coverage).
 ├── public/                               # Static assets.
@@ -61,8 +69,13 @@ spec governs.
 └── CLAUDE.md                             # This file.
 ```
 
-Tests (`tests/`) and the operational screens/components are not built yet. Keep
-this tree in sync as you add them. **Tailwind v4** (tokens in `src/app/globals.css`,
+The full operational flow (login → dashboard → ejecución → verificación →
+bitácora) is implemented at `/` as a **client-side demo** over seed data:
+`src/lib/store.tsx` holds the flow state and enforces the §9 rules by calling
+`src/domain` (no inline rule logic), logging every step to an append-only audit
+array. **Persistence is in-memory only** — wire it to Prisma/Hyperdrive (and
+real auth/sessions) behind the same shapes for production. Keep this tree in
+sync as you add them. **Tailwind v4** (tokens in `src/app/globals.css`,
 not a `tailwind.config`). The Prisma client is generated to `node_modules` on
 `postinstall` (`prisma generate`).
 
@@ -253,16 +266,17 @@ Governance preconditions still apply before production (spec §18 — PCI
 co-leadership, audited base PNTs, budget/stack sign-off, updated internal
 regulation) and the **data-residency sign-off** for Cloudflare (§11.1).
 
-Engineering, building on the current scaffold:
+Done so far: scaffold, pure+tested `src/domain`, Avante UI kit, and the full
+demo flow at `/` over seed data (in-memory). To productionize:
 
-1. Provision Cloudflare bindings and uncomment them in `wrangler.jsonc`
-   (`HYPERDRIVE`, R2 `FOTOS`, KV `SESSIONS`, `SYNC_QUEUE`); run an initial
-   `prisma migrate` against the Postgres behind Hyperdrive.
-2. Add Auth.js (Credentials/PIN, argon2id via `hash-wasm`), KV-backed sessions,
-   and wire the **`src/domain` §9 rules** (already built & tested) into the API
-   request path (role separation, append-only audit, state machine).
-3. Base UI kit (§10.4) is built in `src/components/ui/` (lucide-react). Next:
-   the PWA service worker (Serwist) + IndexedDB offline drafts, and any extra
-   primitives via shadcn/ui restyled to Avante.
-4. Implement the flow screen-by-screen against the prototype and seed §15 data,
-   extending the Vitest domain suite as rules grow (≥80% coverage, §14).
+1. **Persistence:** provision Cloudflare bindings and uncomment them in
+   `wrangler.jsonc` (`HYPERDRIVE`, R2 `FOTOS`, KV `SESSIONS`, `SYNC_QUEUE`); run
+   `prisma migrate`; replace the in-memory store with API routes that read/write
+   Prisma (keep enforcing rules via `src/domain`) and store photos in R2.
+2. **Auth:** real Auth.js (Credentials/PIN, argon2id via `hash-wasm`) + KV
+   sessions, replacing the demo PIN check in `src/lib/seed.ts`.
+3. **Offline/PWA:** Serwist service worker + IndexedDB drafts; sync via Queues
+   with `sync_conflict` handling (§11.3). PDF audit export (§8.5).
+4. **Tests:** add integration/RTL tests for the screens + store (assert a full
+   terminal cycle emits ≥15 audit events, role separation/PCI rules hold);
+   extend the Vitest domain suite as rules grow (≥80% coverage, §14).

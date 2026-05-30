@@ -77,11 +77,20 @@ wrangler queues create limpieza-jci-sync
 ├── prototype/   # Prototipo visual/flujo (HTML vanilla) — referencia exacta de UI
 ├── prisma/      # schema.prisma (modelo de dominio §7)
 ├── src/
-│   ├── app/     # App Router (rutas, layout, estilos globales con tokens Avante)
-│   └── lib/     # Utilidades (p.ej. db.ts: Prisma sobre Hyperdrive)
+│   ├── app/         # App Router. `/` = flujo demo; `/kit` = muestrario de componentes
+│   ├── components/  # ui/ (kit Avante §10.4) + screens/ (pantallas operativas)
+│   ├── domain/      # Reglas §9 puras y testeadas (state machine, separación de roles, bitácora)
+│   └── lib/         # store.tsx (estado del flujo), seed.ts (§15), db.ts (Prisma/Hyperdrive), format/cn
+├── tests/domain/       # Pruebas Vitest del dominio (≥80% cobertura, §14)
 ├── wrangler.jsonc      # Config de Cloudflare Workers + bindings
 └── open-next.config.ts # Config del adaptador OpenNext
 ```
+
+> **Flujo demo:** la ruta `/` ejecuta el ciclo completo (login → dashboard →
+> ejecución → verificación → bitácora) sobre datos semilla (§15) con estado **en
+> memoria** y las reglas §9 aplicadas vía `src/domain`. La persistencia real
+> (Prisma/Hyperdrive), auth (Auth.js/KV) y offline (Serwist) quedan pendientes.
+> PINs de demo: María `1234` · José `2345` · Arely `3456` · Dra. Cruz `4567`.
 
 Las reglas de negocio **no negociables** (separación de roles, bitácora
 append-only, liberación PCI en alto riesgo, etc.) están en `CLAUDE.md` y en la
