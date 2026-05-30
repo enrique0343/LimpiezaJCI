@@ -43,9 +43,11 @@ spec governs.
 ├── prisma/
 │   └── schema.prisma                     # Domain model (§7) + data rules (§7.3).
 ├── src/
-│   ├── app/                              # Next.js App Router (layout es-SV, globals.css w/ Avante tokens).
+│   ├── app/                              # Next.js App Router (layout es-SV, globals.css w/ Avante tokens, /kit showcase).
+│   ├── components/ui/                    # Avante UI kit (§10.4): Button, Card, StatePill, Badge, StepBlock, Stepper, Timer, Modal, PhotoSlot, Toast.
 │   ├── domain/                           # Pure, framework-free §9 rules (state machine, role sep, audit, decisions).
 │   └── lib/
+│       ├── cn.ts                         # className joiner.
 │       └── db.ts                         # PrismaClient over Hyperdrive (per-request, workerd).
 ├── tests/
 │   └── domain/                           # Vitest unit tests for src/domain (spec §14: ≥80% coverage).
@@ -209,9 +211,11 @@ soft-delete (`deletedAt`) for Room and User — never hard-delete.
   thin-line monochrome icons only. Border radius ≤ 4px. No emojis in chrome.
 - **Mobile-first:** usable one-handed and with gloves; tap targets ≥ 44px;
   correct at 360×640 up to 480px wide.
-- Reusable components to build (spec §10.4): `Button`, `Card`, `StatePill`,
-  `Badge`, `StepBlock`, `PhotoSlot`, `Stepper`, `Timer`, `Modal`, `Toast` — match
-  the prototype's rendering exactly.
+- Reusable components (spec §10.4) live in `src/components/ui/` — `Button`,
+  `Card`, `StatePill`, `Badge`, `StepBlock`, `Stepper`, `Timer`, `Modal`,
+  `PhotoSlot`, `Toast` — matched to the prototype. See them rendered at `/kit`.
+  `PhotoSlot` shows the §9.8 privacy notice by default. Reuse these before
+  adding new primitives.
 
 ## Acceptance Criteria & Seed Data
 
@@ -257,7 +261,8 @@ Engineering, building on the current scaffold:
 2. Add Auth.js (Credentials/PIN, argon2id via `hash-wasm`), KV-backed sessions,
    and wire the **`src/domain` §9 rules** (already built & tested) into the API
    request path (role separation, append-only audit, state machine).
-3. Add the UI kit (shadcn/ui restyled to Avante, lucide-react) and the base
-   components (§10.4), then the PWA service worker (Serwist) + IndexedDB drafts.
+3. Base UI kit (§10.4) is built in `src/components/ui/` (lucide-react). Next:
+   the PWA service worker (Serwist) + IndexedDB offline drafts, and any extra
+   primitives via shadcn/ui restyled to Avante.
 4. Implement the flow screen-by-screen against the prototype and seed §15 data,
    extending the Vitest domain suite as rules grow (≥80% coverage, §14).
