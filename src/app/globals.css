@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Sistema visual Avante (spec §10 — obligatorio).
+   Tokens tomados del prototipo (prototype/.../v2.html :root).
+   Neutrales dominan la chrome; acentos institucionales para
+   datos/jerarquía; semáforo SOLO en estados interactivos.
+   ============================================================ */
+:root {
+  /* Neutrales (dominan) */
+  --negro: #1a1a1a;
+  --gris: #4a4a4a;
+  --gris-med: #6b7280;
+  --gris-cl: #e5e5e5;
+  --gris-bg: #fafafa;
+  --gris-bg2: #f4f4f4;
+  --blanco: #ffffff;
+
+  /* Acentos institucionales */
+  --azul-marino: #1a2b4a;
+  --turquesa: #5b9ba8;
+  --violeta: #7a6b8e;
+
+  /* Semáforo funcional (uso operativo — poka-yoke) */
+  --verde: #1f5740; /* conforme, cumple */
+  --ambar: #b8862e; /* severidad menor */
+  --rojo: #a0322d; /* crítico, no conforme */
+  --rojo2: #b8443a; /* severidad mayor */
+
+  --background: var(--gris-bg);
+  --foreground: var(--negro);
+
+  /* Tipografía Avante (spec §10.1) */
+  --font-avante: "Century Gothic", "CenturyGothic", "AppleGothic", "Questrial",
+    sans-serif;
+}
+
+/* Expose tokens to Tailwind v4 utilities (e.g. text-foreground, bg-background). */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-negro: var(--negro);
+  --color-gris: var(--gris);
+  --color-gris-med: var(--gris-med);
+  --color-gris-cl: var(--gris-cl);
+  --color-azul-marino: var(--azul-marino);
+  --color-turquesa: var(--turquesa);
+  --color-violeta: var(--violeta);
+  --color-verde: var(--verde);
+  --color-ambar: var(--ambar);
+  --color-rojo: var(--rojo);
+  --color-rojo2: var(--rojo2);
+  --font-sans: var(--font-avante);
+  --radius-avante: 4px; /* border radius máximo (spec §10.3) */
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-avante);
+}

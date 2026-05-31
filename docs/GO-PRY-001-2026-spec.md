@@ -580,15 +580,15 @@ El prototipo HTML adjunto (`limpieza-trazabilidad-jci-v2.html`) implementa todos
 
 ### 11.1 Arquitectura
 
-**Recomendación:** Next.js 15 (App Router) + TypeScript + PostgreSQL, desplegada como **PWA** (Progressive Web App) con capacidad offline-first, **sobre Cloudflare Workers** mediante el adaptador **OpenNext** (`@opennextjs/cloudflare`).
+**Recomendación:** Next.js 15 (App Router) + TypeScript + **Cloudflare D1** (SQLite serverless), desplegada como **PWA** (Progressive Web App) con capacidad offline-first, **sobre Cloudflare Workers** mediante el adaptador **OpenNext** (`@opennextjs/cloudflare`).
 
 Justificación:
 
 - **PWA mobile-first** permite instalación en pantalla de inicio de iPhone/Android sin tienda, sin proceso de aprobación, con experiencia equivalente a app nativa.
 - **Offline-first** es crítico porque las habitaciones de hospitalización en Avante tienen WiFi inconsistente. El operador debe poder completar el flujo offline y sincronizar al reconectarse.
 - **TypeScript** alinea con el roadmap de desarrollo de Avante y con Claude Code.
-- **PostgreSQL** es robusto, defensible para auditoría y soporta extensiones para auditoría JSON. Se mantiene como base de datos y se conecta desde Workers vía **Hyperdrive** (pooling/aceleración).
-- **Cloudflare Workers + R2 + Hyperdrive** dan red global, despliegue sin servidores que administrar, y almacenamiento de objetos S3-compatible, conservando Postgres para la defensibilidad de auditoría.
+- **Cloudflare D1** (SQLite serverless) es la base de datos: nativa de la plataforma, sin servidor externo que administrar, con binding directo desde Workers. Para defensibilidad de auditoría, la inmutabilidad de la bitácora se garantiza en la capa de aplicación (§9.7).
+- **Cloudflare Workers + D1 + R2 + KV** dan una pila 100% en Cloudflare: red global, base de datos serverless, almacenamiento de objetos S3-compatible y sesiones efímeras, sin dependencias externas.
 - **API REST** (Next.js Route Handlers sobre Workers) permite que el sistema se exponga eventualmente como módulo del HIS futuro o se integre con Odoo.
 
 > **⚠️ Salvedad de residencia de datos.** La versión original prefería
@@ -620,8 +620,8 @@ Frontend / App:
 Plataforma / Backend (Cloudflare):
   - Cloudflare Workers como runtime (adaptador OpenNext @opennextjs/cloudflare)
   - Next.js Route Handlers (API en el mismo proyecto)
-  - Prisma ORM con driver adapter @prisma/adapter-pg sobre Hyperdrive
-  - PostgreSQL 16+ gestionado (Neon / Prisma Postgres / self-hosted), vía Hyperdrive
+  - Prisma ORM con driver adapter @prisma/adapter-d1 sobre el binding D1
+  - Cloudflare D1 (SQLite serverless); enums→texto y listas/structs→Json
   - Auth.js / NextAuth (Credentials, PIN hasheado con argon2id vía hash-wasm)
   - Sesiones de corta duración en Workers KV (sin sesión persistente)
 
@@ -638,7 +638,7 @@ Observabilidad:
   - Logging estructurado; OpenTelemetry para trazas (opcional v2)
 
 Deployment / tooling:
-  - Wrangler (config, bindings, deploy). Bindings: HYPERDRIVE, R2, KV, Queues
+  - Wrangler (config, bindings, deploy). Bindings: DB (D1), FOTOS (R2), SESSIONS (KV); Queues en plan pago
   - `wrangler dev` / `opennextjs-cloudflare preview` para preview fiel a workerd
   - `next dev` para iteración rápida en desarrollo
 ```

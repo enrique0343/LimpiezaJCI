@@ -3,12 +3,14 @@
 This file provides guidance to Claude Code (and other AI assistants) when working
 with code in this repository.
 
-> **Status: Planning / pre-scaffold.**
-> The repository currently holds the **development brief** and an **interactive
-> visual prototype** — the source of truth for what gets built — but the
-> production application has **not been scaffolded yet**. When you scaffold the
-> app, update the "Repository Structure" and "Development Workflow" sections to
-> reflect reality, and remove this notice.
+> **Status: Flow wired to Cloudflare D1.**
+> Next.js 15 + Cloudflare (OpenNext) builds; the domain (§9 rules) is pure +
+> tested; the Avante UI kit is built; the full flow (login → dashboard →
+> ejecución → verificación → bitácora) runs at `/`, **hydrating rooms from D1 and
+> persisting execution/verification to D1** via `/api/*` routes that re-enforce
+> §9. D1/R2/KV are provisioned. **Not yet deployed** (needs `wrangler` auth).
+> Remaining for production: real Auth.js/KV sessions, fully server-driven reads,
+> the sync layer (Queues/IndexedDB), PWA/offline, and PDF export.
 
 ## Project Overview
 
@@ -38,14 +40,51 @@ spec governs.
 ```
 .
 ├── docs/
-│   └── GO-PRY-001-2026-spec.md          # Authoritative development brief (es). SOURCE OF TRUTH.
+│   └── GO-PRY-001-2026-spec.md           # Authoritative development brief (es). SOURCE OF TRUTH.
 ├── prototype/
 │   └── limpieza-trazabilidad-jci-v2.html # Single-file vanilla-JS visual + flow prototype.
+├── prisma/
+│   └── schema.prisma                     # Domain model (§7) + data rules (§7.3).
+├── src/
+│   ├── app/                              # Next.js App Router. `/` = full demo flow; `/kit` = UI kit; `/api/*` = D1-backed routes.
+│   ├── components/
+│   │   ├── ui/                           # Avante UI kit (§10.4): Button, Card, StatePill, Badge, StepBlock, Stepper, Timer, Modal, PhotoSlot, Toast.
+│   │   └── screens/                      # Operational screens: shell, login, dashboard, execution, verification, trace, router.
+│   ├── domain/                           # Pure, framework-free §9 rules (state machine, role sep, audit, decisions).
+│   └── lib/
+│       ├── cn.ts                         # className joiner.
+│       ├── db.ts                         # PrismaClient over Cloudflare D1 (per-request, workerd).
+│       ├── repo.ts                        # Server data access: D1 queries/mutations + §9 enforcement + audit writes.
+│       ├── map.ts                         # Pure D1↔client mappers + audit-event builders (tested).
+│       ├── types.ts                      # Runtime types mirroring §7.
+│       ├── seed.ts                       # Demo seed data (§15): users, rooms, protocols, insumos, verif template.
+│       ├── format.ts                     # es-SV time formatting (UTC→America/El_Salvador for display).
+│       └── store.tsx                     # Client AppProvider: flow state + §9 enforcement; hydrates from /api, persists writes.
+├── tests/
+│   ├── domain/                           # Vitest unit tests for src/domain (spec §14: ≥80% coverage).
+│   └── lib/                              # Vitest unit tests for pure lib helpers (map.ts audit builders).
+├── public/                               # Static assets.
+├── next.config.ts                        # Next config + initOpenNextCloudflareForDev().
+├── open-next.config.ts                   # OpenNext (Cloudflare) adapter config.
+├── wrangler.jsonc                        # Workers config + bindings (D1/R2/KV + cron; Queues paid).
+├── cloudflare-env.d.ts                   # Types for the Workers bindings (regen: npm run cf-typegen).
+├── .env.example / .dev.vars.example      # Local DB URL / workerd secrets templates.
+├── README.md                             # Human-facing setup & commands.
 └── CLAUDE.md                             # This file.
 ```
 
-The production app (`src/`, `tests/`, etc.) does not exist yet. Once scaffolded,
-document its real layout here and keep this tree in sync.
+The full operational flow (login → dashboard → ejecución → verificación →
+bitácora) runs at `/`: `src/lib/store.tsx` holds client flow state, enforces the
+§9 rules via `src/domain` (no inline rule logic), and logs an append-only audit
+array. It **hydrates rooms from D1** (`GET /api/rooms`, fallback to seed) and
+**persists execution/verification to D1** (`POST /api/executions`,
+`/api/verifications`) best-effort. The server routes use `src/lib/repo.ts`
+(`getPrisma()`) and re-enforce §9 (role separation, PCI-only release, append-only
+audit) — the server is authoritative. Remaining: make the client fully
+server-driven (read-after-write) and add real auth/sessions. Keep this tree in
+sync as you add them. **Tailwind v4** (tokens in `src/app/globals.css`,
+not a `tailwind.config`). The Prisma client is generated to `node_modules` on
+`postinstall` (`prisma generate`).
 
 ### The prototype (`prototype/limpieza-trazabilidad-jci-v2.html`)
 
@@ -59,28 +98,39 @@ component, match the prototype unless the spec says otherwise.
 
 ## Development Workflow
 
-> **No build tooling exists yet.** The commands below are the *recommended*
-> targets from the spec (§11). Fill in and verify the real commands when the
-> project is scaffolded, then update this table.
+| Task                          | Command               |
+| ----------------------------- | --------------------- |
+| Install deps (runs `generate`)| `npm install`         |
+| Run dev server (fast)         | `npm run dev`         |
+| Build (Next.js)               | `npm run build`       |
+| Lint                          | `npm run lint`        |
+| Run tests                     | `npm test`            |
+| Tests + coverage              | `npm run test:coverage` |
+| Preview in `workerd` (OpenNext)| `npm run preview`    |
+| Deploy to Cloudflare          | `npm run deploy`      |
+| Generate Prisma client        | `npm run db:generate` |
+| Dev migration                 | `npm run db:migrate`  |
+| Regenerate binding types      | `npm run cf-typegen`  |
 
-| Task           | Command (target, fill in when scaffolded) |
-| -------------- | ----------------------------------------- |
-| Install deps   | `npm install`                             |
-| Run dev server | `npm run dev`                             |
-| Run tests      | `npm test`                                |
-| Lint           | `npm run lint`                            |
-| Build          | `npm run build`                           |
+Tests use **Vitest** (`tests/`, alias `@/` → `src/`). Coverage is gated at ≥80%
+on `src/domain` (spec §14). Keep new domain logic pure and covered.
 
-To view the prototype today, just open the HTML file in a browser — no server
-needed.
+- `npm run dev` uses the Next.js dev server (fast). For `workerd`-accurate
+  behavior (bindings, runtime quirks), use `npm run preview`.
+- Set `DATABASE_URL` (copy `.env.example` → `.env`) for local Prisma/`next dev`;
+  in production the database is Cloudflare D1 via the `DB` binding.
+- To view the prototype, just open the HTML file in a browser — no server needed.
 
-**Before committing application code**, run lint and tests and ensure they pass.
+**Before committing application code**, run `npm run lint` and the build (and
+tests, once they exist) and ensure they pass.
 
-## Recommended Stack — Cloudflare target (spec §11 — not yet installed)
+## Stack — Cloudflare target (spec §11)
 
 **Platform decision (per spec §18.4, confirm with Edwin Martínez):** the app
 targets **Cloudflare** for deployment. This supersedes the brief's original
 self-hosted/Docker recommendation — see the **data-residency caveat** below.
+The **baseline is installed** (Next.js 15.5 pinned for OpenNext compatibility,
+Tailwind v4, Prisma); the items below describe what's wired vs. still to add.
 
 - **App / framework:** **Next.js 15** (App Router) + **strict TypeScript**,
   deployed to **Cloudflare Workers** via the **OpenNext adapter**
@@ -92,11 +142,13 @@ self-hosted/Docker recommendation — see the **data-residency caveat** below.
   (restyled to Avante) + **lucide-react** icons. **React Hook Form + Zod** for
   forms/validation; **TanStack Query** for server state; **Serwist** for the
   service worker; client-side **IndexedDB** for offline drafts/photos.
-- **Database:** **PostgreSQL 16+** (kept for audit defensibility), accessed from
-  Workers through **Cloudflare Hyperdrive** (connection pooling/acceleration).
-  **Prisma** as ORM via the **driver adapter** `@prisma/adapter-pg` over
-  `env.HYPERDRIVE.connectionString`. Managed Postgres (Neon / Prisma Postgres /
-  self-hosted) — place it as close to es-SV as the provider allows.
+- **Database:** **Cloudflare D1** (serverless SQLite) — fully native, no external
+  DB. **Prisma** as ORM via the **driver adapter** `@prisma/adapter-d1` over the
+  `DB` binding. SQLite has no enums/scalar-lists, so enum fields are `String`
+  (constrained by `src/domain/types.ts`) and lists/structs are `Json`. Schema +
+  §15 seed are applied to the live D1 `limpieza-jci-db`
+  (`d2aebbba-18e4-40da-99f6-f1f58a243fed`). Migrations: `prisma migrate diff`
+  → apply SQL to D1 (`wrangler d1 execute` or the dashboard).
 - **Auth:** **Auth.js / NextAuth** (Credentials, PIN). **Native `argon2` does
   NOT run on Workers** — hash PINs with **argon2id via WASM (`hash-wasm`)** or
   PBKDF2 via Web Crypto. No persistent sessions (shared devices), 30-min
@@ -110,7 +162,7 @@ self-hosted/Docker recommendation — see the **data-residency caveat** below.
   notification fan-out; **Cron Triggers** for daily KPI summaries.
 - **Tooling:** **Wrangler** for config/bindings/deploy. `wrangler dev` /
   `opennextjs-cloudflare preview` for `workerd`-accurate previews; `next dev`
-  for fast iteration. Bindings: `HYPERDRIVE`, R2 bucket, KV, Queues.
+  for fast iteration. Bindings: `DB` (D1), `FOTOS` (R2), `SESSIONS` (KV); Queues on the paid plan.
 
 > **⚠️ Data-residency caveat (governance, not code).** Spec §11.1 preferred
 > self-hosting on Avante infra "for clinical-data considerations." Cloudflare is
@@ -168,9 +220,10 @@ soft-delete (`deletedAt`) for Room and User — never hard-delete.
 
 - **Typography:** `'Century Gothic', 'CenturyGothic', 'AppleGothic', 'Questrial',
   sans-serif`.
-- **Design tokens:** use the CSS variables defined in the prototype's `:root`
-  (neutrals dominate the chrome; institutional accents `--azul-marino`,
-  `--turquesa`, `--violeta` for data/hierarchy only).
+- **Design tokens:** the prototype's `:root` variables are wired into
+  `src/app/globals.css` (and exposed to Tailwind v4 via `@theme inline`, e.g.
+  `text-azul-marino`, `bg-gris-bg`). Neutrals dominate the chrome; institutional
+  accents `--azul-marino`, `--turquesa`, `--violeta` for data/hierarchy only.
 - **Functional traffic-light colors** (`--verde`/`--ambar`/`--rojo`/`--rojo2`)
   are allowed **only** on interactive state buttons (Conforme/No conforme),
   finding severities, and room-state chips — a deliberate, documented *poka-yoke*
@@ -180,9 +233,11 @@ soft-delete (`deletedAt`) for Room and User — never hard-delete.
   thin-line monochrome icons only. Border radius ≤ 4px. No emojis in chrome.
 - **Mobile-first:** usable one-handed and with gloves; tap targets ≥ 44px;
   correct at 360×640 up to 480px wide.
-- Reusable components to build (spec §10.4): `Button`, `Card`, `StatePill`,
-  `Badge`, `StepBlock`, `PhotoSlot`, `Stepper`, `Timer`, `Modal`, `Toast` — match
-  the prototype's rendering exactly.
+- Reusable components (spec §10.4) live in `src/components/ui/` — `Button`,
+  `Card`, `StatePill`, `Badge`, `StepBlock`, `Stepper`, `Timer`, `Modal`,
+  `PhotoSlot`, `Toast` — matched to the prototype. See them rendered at `/kit`.
+  `PhotoSlot` shows the §9.8 privacy notice by default. Reuse these before
+  adding new primitives.
 
 ## Acceptance Criteria & Seed Data
 
@@ -194,8 +249,7 @@ Scope boundaries (in/out of v1, v2 roadmap) are in §13.
 
 ## Git & Branching Conventions
 
-- **Default branch:** `main`. (Note: as of writing, no `main` exists on the
-  remote yet — the first commit there will create it.)
+- **Default branch:** `main`.
 - **Feature branches:** `feature/<short-desc>`, `fix/<short-desc>`, or
   `claude/<short-desc>` for AI-assisted work.
 - **Commits:** clear, imperative mood (e.g. "Add execution timer").
@@ -207,21 +261,34 @@ Scope boundaries (in/out of v1, v2 roadmap) are in §13.
   The prototype governs visual/flow detail. Don't contradict either silently.
 - **Don't weaken the §9 business rules** to make something easier — they are the
   whole point of the system. If a rule blocks you, surface it; don't bypass it.
-- **Don't invent files, frameworks, or commands** that don't exist yet. The app
-  is unscaffolded; verify the current state before referencing it.
-- When you scaffold the app or add tooling, **update this file in the same
-  change** so it always reflects reality.
+- **Don't invent files, frameworks, or commands.** Verify the current state
+  before referencing it. **Next is pinned to 15.x** for OpenNext/Workers
+  compatibility — do not bump to 16 without verifying adapter support.
+- When you add tooling or change structure, **update this file (and `README.md`)
+  in the same change** so they always reflect reality.
 - Prefer conventions already present in the prototype and spec over introducing
   new ones. Keep this file concise and current.
 
 ## Next Steps
 
-Before coding (spec §18 lists formal preconditions — PCI co-leadership, audited
-base PNTs, budget/stack sign-off, updated internal regulation). Once cleared:
+Governance preconditions still apply before production (spec §18 — PCI
+co-leadership, audited base PNTs, budget/stack sign-off, updated internal
+regulation) and the **data-residency sign-off** for Cloudflare (§11.1).
 
-1. Confirm the stack with Edwin Martínez and scaffold the Next.js 15 + TS PWA
-   on Cloudflare Workers (`npm create cloudflare@latest -- --framework=next`).
-2. Add a `README.md` for human contributors and a dependency manifest.
-3. Model the domain (§7) in Prisma, enforcing the §9 rules at the DB/ORM layer.
-4. Implement the flow screen-by-screen against the prototype, then fill in the
-   "Repository Structure" and "Development Workflow" sections above.
+Done so far: scaffold, pure+tested `src/domain`, Avante UI kit, the full flow at
+`/`, **provisioned Cloudflare resources** (D1 `limpieza-jci-db` with schema + §15
+seed, R2 `limpieza-jci-fotos`, KV `limpieza-jci-sessions`, bound in
+`wrangler.jsonc`), and **D1-backed `/api/*` routes** (`rooms`, `executions`,
+`verifications`, `audit`, `health`) wired into the flow via `src/lib/repo.ts`.
+To productionize:
+
+1. **Deploy:** `npm run deploy` (needs `wrangler login` or a `CLOUDFLARE_API_TOKEN`).
+   Then make the client fully server-driven (read-after-write from D1 instead of
+   best-effort persistence), and store photos in R2. Queues need Workers Paid.
+2. **Auth:** real Auth.js (Credentials/PIN, argon2id via `hash-wasm`) + KV
+   sessions, replacing the demo PIN check in `src/lib/seed.ts`.
+3. **Offline/PWA:** Serwist service worker + IndexedDB drafts; sync via Queues
+   with `sync_conflict` handling (§11.3). PDF audit export (§8.5).
+4. **Tests:** add integration/RTL tests for the screens + store (assert a full
+   terminal cycle emits ≥15 audit events, role separation/PCI rules hold);
+   extend the Vitest domain suite as rules grow (≥80% coverage, §14).
