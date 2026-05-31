@@ -3,13 +3,14 @@
 This file provides guidance to Claude Code (and other AI assistants) when working
 with code in this repository.
 
-> **Status: Demo flow implemented (in-memory).**
-> Next.js 15 + Cloudflare (OpenNext) scaffold builds; the domain (§9 rules) is
-> pure + tested; the Avante UI kit is built; and the full operational flow
-> (login → dashboard → ejecución → verificación → bitácora) runs at `/` over
-> **seed data with in-memory state** (no live DB/auth yet). Remaining for
-> production: real Auth.js/KV sessions, full Prisma/D1 persistence, the sync
-> layer (Queues/IndexedDB), PWA/offline, and PDF export.
+> **Status: Flow wired to Cloudflare D1.**
+> Next.js 15 + Cloudflare (OpenNext) builds; the domain (§9 rules) is pure +
+> tested; the Avante UI kit is built; the full flow (login → dashboard →
+> ejecución → verificación → bitácora) runs at `/`, **hydrating rooms from D1 and
+> persisting execution/verification to D1** via `/api/*` routes that re-enforce
+> §9. D1/R2/KV are provisioned. **Not yet deployed** (needs `wrangler` auth).
+> Remaining for production: real Auth.js/KV sessions, fully server-driven reads,
+> the sync layer (Queues/IndexedDB), PWA/offline, and PDF export.
 
 ## Project Overview
 
@@ -45,7 +46,7 @@ spec governs.
 ├── prisma/
 │   └── schema.prisma                     # Domain model (§7) + data rules (§7.3).
 ├── src/
-│   ├── app/                              # Next.js App Router. `/` = full demo flow; `/kit` = UI kit showcase.
+│   ├── app/                              # Next.js App Router. `/` = full demo flow; `/kit` = UI kit; `/api/*` = D1-backed routes.
 │   ├── components/
 │   │   ├── ui/                           # Avante UI kit (§10.4): Button, Card, StatePill, Badge, StepBlock, Stepper, Timer, Modal, PhotoSlot, Toast.
 │   │   └── screens/                      # Operational screens: shell, login, dashboard, execution, verification, trace, router.
@@ -53,12 +54,15 @@ spec governs.
 │   └── lib/
 │       ├── cn.ts                         # className joiner.
 │       ├── db.ts                         # PrismaClient over Cloudflare D1 (per-request, workerd).
-│       ├── types.ts                      # Runtime (demo) types mirroring §7.
+│       ├── repo.ts                        # Server data access: D1 queries/mutations + §9 enforcement + audit writes.
+│       ├── map.ts                         # Pure D1↔client mappers + audit-event builders (tested).
+│       ├── types.ts                      # Runtime types mirroring §7.
 │       ├── seed.ts                       # Demo seed data (§15): users, rooms, protocols, insumos, verif template.
 │       ├── format.ts                     # es-SV time formatting (UTC→America/El_Salvador for display).
-│       └── store.tsx                     # Client AppProvider: flow state + §9 enforcement + audit logging.
+│       └── store.tsx                     # Client AppProvider: flow state + §9 enforcement; hydrates from /api, persists writes.
 ├── tests/
-│   └── domain/                           # Vitest unit tests for src/domain (spec §14: ≥80% coverage).
+│   ├── domain/                           # Vitest unit tests for src/domain (spec §14: ≥80% coverage).
+│   └── lib/                              # Vitest unit tests for pure lib helpers (map.ts audit builders).
 ├── public/                               # Static assets.
 ├── next.config.ts                        # Next config + initOpenNextCloudflareForDev().
 ├── open-next.config.ts                   # OpenNext (Cloudflare) adapter config.
@@ -70,11 +74,14 @@ spec governs.
 ```
 
 The full operational flow (login → dashboard → ejecución → verificación →
-bitácora) is implemented at `/` as a **client-side demo** over seed data:
-`src/lib/store.tsx` holds the flow state and enforces the §9 rules by calling
-`src/domain` (no inline rule logic), logging every step to an append-only audit
-array. **Persistence is in-memory only** — wire it to Prisma/D1 (and
-real auth/sessions) behind the same shapes for production. Keep this tree in
+bitácora) runs at `/`: `src/lib/store.tsx` holds client flow state, enforces the
+§9 rules via `src/domain` (no inline rule logic), and logs an append-only audit
+array. It **hydrates rooms from D1** (`GET /api/rooms`, fallback to seed) and
+**persists execution/verification to D1** (`POST /api/executions`,
+`/api/verifications`) best-effort. The server routes use `src/lib/repo.ts`
+(`getPrisma()`) and re-enforce §9 (role separation, PCI-only release, append-only
+audit) — the server is authoritative. Remaining: make the client fully
+server-driven (read-after-write) and add real auth/sessions. Keep this tree in
 sync as you add them. **Tailwind v4** (tokens in `src/app/globals.css`,
 not a `tailwind.config`). The Prisma client is generated to `node_modules` on
 `postinstall` (`prisma generate`).
@@ -268,15 +275,16 @@ Governance preconditions still apply before production (spec §18 — PCI
 co-leadership, audited base PNTs, budget/stack sign-off, updated internal
 regulation) and the **data-residency sign-off** for Cloudflare (§11.1).
 
-Done so far: scaffold, pure+tested `src/domain`, Avante UI kit, the full demo
-flow at `/` over seed data (in-memory), and **provisioned Cloudflare resources**
-— D1 `limpieza-jci-db` (schema + §15 seed applied), R2 `limpieza-jci-fotos`, KV
-`limpieza-jci-sessions`, all bound in `wrangler.jsonc`; `/api/health` reads D1.
+Done so far: scaffold, pure+tested `src/domain`, Avante UI kit, the full flow at
+`/`, **provisioned Cloudflare resources** (D1 `limpieza-jci-db` with schema + §15
+seed, R2 `limpieza-jci-fotos`, KV `limpieza-jci-sessions`, bound in
+`wrangler.jsonc`), and **D1-backed `/api/*` routes** (`rooms`, `executions`,
+`verifications`, `audit`, `health`) wired into the flow via `src/lib/repo.ts`.
 To productionize:
 
-1. **Persistence:** replace the in-memory store with API routes / server actions
-   that read/write D1 via `getPrisma()` (keep enforcing rules through
-   `src/domain`) and store photos in R2. Queues need the Workers Paid plan.
+1. **Deploy:** `npm run deploy` (needs `wrangler login` or a `CLOUDFLARE_API_TOKEN`).
+   Then make the client fully server-driven (read-after-write from D1 instead of
+   best-effort persistence), and store photos in R2. Queues need Workers Paid.
 2. **Auth:** real Auth.js (Credentials/PIN, argon2id via `hash-wasm`) + KV
    sessions, replacing the demo PIN check in `src/lib/seed.ts`.
 3. **Offline/PWA:** Serwist service worker + IndexedDB drafts; sync via Queues

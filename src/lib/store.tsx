@@ -4,7 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -151,6 +153,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (fn: (s: AppState) => AppState) => setState((s) => fn(s)),
     [],
   );
+
+  // Latest state, for reading inside fire-and-forget side effects.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  // Hydrate rooms from Cloudflare D1 on mount; fall back to seed data (so the
+  // demo still works offline / without bindings). Best-effort.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/rooms")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.ok && Array.isArray(data.rooms) && data.rooms.length) {
+          patch((s) => ({ ...s, rooms: data.rooms as Room[] }));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [patch]);
+
+  // Best-effort persistence to D1 (the API re-derives/enforces the §9 rules).
+  const persistExecutionRemote = useCallback((exec: ExecDraft) => {
+    const proto = PROTOCOLS[exec.protoKey];
+    void fetch("/api/executions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        roomId: exec.roomId,
+        operatorId: exec.operatorId,
+        protocolCode: proto.code,
+        protocolVersion: proto.version,
+        motivo: exec.motivo,
+        qrScannedAt: exec.qrScannedAt,
+        startedAt: exec.startedAt ?? Date.now(),
+        finishedAt: Date.now(),
+        stepsConfirmed: exec.stepsConfirmed,
+        insumos: exec.insumos,
+        photos: exec.photos,
+        incidents: exec.incidents,
+      }),
+    }).catch(() => {});
+  }, []);
 
   const log = useCallback(
     (s: AppState, ...inputs: AuditEventInput[]): StoredAuditEvent[] => {
@@ -479,35 +525,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [log],
   );
 
-  const finishExecution = useCallback(
-    () =>
-      patch((s) => {
-        if (!s.exec) return s;
-        const proto = PROTOCOLS[s.exec.protoKey];
-        if (proto.photoReq) {
-          const missing = proto.photoSlots.some((_, i) => !s.exec!.photos[i]);
-          if (missing) {
-            toast("Captura todas las fotos requeridas antes de finalizar.");
-            return s;
-          }
-        }
-        return commitExecution(s);
-      }),
-    [patch, commitExecution, toast],
-  );
+  const finishExecution = useCallback(() => {
+    const s = stateRef.current;
+    if (!s.exec) return;
+    const proto = PROTOCOLS[s.exec.protoKey];
+    if (proto.photoReq) {
+      const missing = proto.photoSlots.some((_, i) => !s.exec!.photos[i]);
+      if (missing) {
+        toast("Captura todas las fotos requeridas antes de finalizar.");
+        return;
+      }
+    }
+    const exec = s.exec;
+    patch(commitExecution);
+    persistExecutionRemote(exec);
+  }, [patch, commitExecution, toast, persistExecutionRemote]);
 
-  const finishJourney = useCallback(
-    () =>
-      patch((s) => {
-        if (!s.exec) return s;
-        const proto = PROTOCOLS[s.exec.protoKey];
-        if (proto.photoReq) {
-          return { ...s, screen: "exec_photos", history: [...s.history, s.screen] };
-        }
-        return commitExecution(s);
-      }),
-    [patch, commitExecution],
-  );
+  const finishJourney = useCallback(() => {
+    const s = stateRef.current;
+    if (!s.exec) return;
+    const proto = PROTOCOLS[s.exec.protoKey];
+    if (proto.photoReq) {
+      patch((st) => ({
+        ...st,
+        screen: "exec_photos",
+        history: [...st.history, st.screen],
+      }));
+      return;
+    }
+    const exec = s.exec;
+    patch(commitExecution);
+    persistExecutionRemote(exec);
+  }, [patch, commitExecution, persistExecutionRemote]);
 
   // ---------- Verification flow (§8.4) ----------
 
@@ -567,8 +616,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [patch],
   );
 
+  const persistVerificationRemote = useCallback((s: AppState) => {
+    const room = s.rooms.find((r) => r.id === s.activeRoomId);
+    if (!room || !s.verif || !s.user || !room.execRecord) return;
+    void fetch("/api/verifications", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        roomId: room.id,
+        executionRecordId: room.execRecord.id,
+        verifierId: s.user.id,
+        verifierRole: s.user.role,
+        startedAt: s.verif.startedAt,
+        results: s.verif.results,
+      }),
+    }).catch(() => {});
+  }, []);
+
   const finishVerification = useCallback(
-    () =>
+    () => {
+      persistVerificationRemote(stateRef.current);
       patch((s) => {
         const room = s.rooms.find((r) => r.id === s.activeRoomId);
         if (!room || !s.verif || !s.user || !room.execRecord) return s;
@@ -645,8 +712,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           screen: "verif_done",
           history: [...s.history, s.screen],
         };
-      }),
-    [patch, log, toast],
+      });
+    },
+    [patch, log, toast, persistVerificationRemote],
   );
 
   const activeRoom = useMemo(
