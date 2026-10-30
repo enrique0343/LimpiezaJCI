@@ -16,7 +16,10 @@
 //    correction is a NEW event with prevEventId pointing at the original (§9.7).
 
 generator client {
-  provider = "prisma-client-js"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "workerd"
+  moduleFormat = "esm"
 }
 
 datasource db {

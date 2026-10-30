@@ -9,9 +9,9 @@ with code in this repository.
 > Cloudflare D1 via `/api/*`. Room entry/exit use **GS1 DataMatrix** (scan-in /
 > scan-out), supplies are captured by scanning, and a **Reportes** screen (§8.6)
 > shows derived indicators. UI is **responsive** (phone-first operator flow;
-> wider dashboard/reportes on tablet/desktop). D1/R2/KV provisioned. **Not yet
-> deployed** (needs `wrangler` auth); a pending D1 migration adds the scan-time
-> columns (`prisma/d1-migrations/0002-scan-times.sql`). Remaining: real
+> wider dashboard/reportes on tablet/desktop). **Deployed live** at
+> https://limpieza-jci.enrique0343.workers.dev (D1/R2/KV bound; scan-time D1
+> migration applied; `/api/health` confirms the D1 link). Remaining: real
 > Auth.js/KV sessions, camera scanning (zxing), PWA/offline, PDF export.
 
 ## Project Overview
@@ -89,8 +89,10 @@ array. It **hydrates rooms from D1** (`GET /api/rooms`, fallback to seed) and
 audit) — the server is authoritative. Remaining: make the client fully
 server-driven (read-after-write) and add real auth/sessions. Keep this tree in
 sync as you add them. **Tailwind v4** (tokens in `src/app/globals.css`,
-not a `tailwind.config`). The Prisma client is generated to `node_modules` on
-`postinstall` (`prisma generate`).
+not a `tailwind.config`). The Prisma client uses the new `prisma-client`
+generator with `runtime = "workerd"` (WASM engine, no `fs` on Workers), emitted
+to `src/generated/prisma` (gitignored) on `postinstall` — import it from
+`@/generated/prisma/client`, never `@prisma/client`.
 
 ### The prototype (`prototype/limpieza-trazabilidad-jci-v2.html`)
 
@@ -138,9 +140,10 @@ self-hosted/Docker recommendation — see the **data-residency caveat** below.
 The **baseline is installed** (Next.js 16, Tailwind v4, Prisma); the items
 below describe what's wired vs. still to add.
 
-- **App / framework:** **Next.js 15** (App Router) + **strict TypeScript**,
+- **App / framework:** **Next.js 16** (App Router) + **strict TypeScript**,
   deployed to **Cloudflare Workers** via the **OpenNext adapter**
-  (`@opennextjs/cloudflare`). The Workers runtime is `workerd`, **not Node** —
+  (`@opennextjs/cloudflare` ≥1.20 — earlier versions 500 on Next 16 at runtime).
+  The Workers runtime is `workerd`, **not Node** —
   enable `nodejs_compat` and a recent `compatibility_date` in `wrangler.jsonc`.
   Shipped as an **offline-first PWA** (rooms have inconsistent WiFi; operators
   must complete the full flow offline and sync on reconnect).
@@ -289,9 +292,10 @@ seed, R2 `limpieza-jci-fotos`, KV `limpieza-jci-sessions`, bound in
 `verifications`, `audit`, `health`) wired into the flow via `src/lib/repo.ts`.
 To productionize:
 
-1. **Deploy:** `npm run deploy` (needs `wrangler login` or a `CLOUDFLARE_API_TOKEN`).
-   Then make the client fully server-driven (read-after-write from D1 instead of
-   best-effort persistence), and store photos in R2. Queues need Workers Paid.
+1. **Deployed** at https://limpieza-jci.enrique0343.workers.dev via `npm run deploy`
+   (needs `wrangler login` or `CLOUDFLARE_API_TOKEN`). Next: make the client fully
+   server-driven (read-after-write from D1 instead of best-effort persistence),
+   and store photos in R2. Queues need Workers Paid.
 2. **Auth:** real Auth.js (Credentials/PIN, argon2id via `hash-wasm`) + KV
    sessions, replacing the demo PIN check in `src/lib/seed.ts`.
 3. **Offline/PWA:** Serwist service worker + IndexedDB drafts; sync via Queues
