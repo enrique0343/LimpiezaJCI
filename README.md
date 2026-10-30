@@ -10,12 +10,14 @@ pre-condición de defensibilidad para la auditoría **JCI 8ª edición**
 
 ## Stack
 
-- **Next.js 15** (App Router) + **TypeScript** estricto, desplegado en
+- **Next.js 16** (App Router) + **TypeScript** estricto, desplegado en
   **Cloudflare Workers** vía el adaptador **OpenNext** (`@opennextjs/cloudflare`).
 - **Cloudflare D1** (SQLite serverless) con **Prisma** (driver adapter
   `@prisma/adapter-d1`) — base de datos nativa, sin servidor externo.
 - **Tailwind CSS v4** con los design tokens Avante.
 - **R2** (fotos), **KV** (sesiones), **Cron** (KPIs); **Queues** (sync) en plan pago.
+- Captura **GS1 DataMatrix** (entrada/salida de habitación e insumos) e
+  **indicadores** (pantalla Reportes §8.6). UI **responsive**.
 
 El stack completo y su justificación están en `docs/GO-PRY-001-2026-spec.md` §11
 y en `CLAUDE.md`.
@@ -63,8 +65,15 @@ Los recursos ya están aprovisionados y enlazados en `wrangler.jsonc`:
 | R2 (fotos) | `limpieza-jci-fotos` | `FOTOS` |
 | KV (sesiones) | `limpieza-jci-sessions` | `SESSIONS` |
 
-El schema y los datos semilla (§15) ya fueron aplicados a D1. Para verificar la
-conexión real a D1 en el Worker, la ruta `GET /api/health` devuelve los conteos.
+El schema y los datos semilla (§15) ya fueron aplicados a D1. Antes de desplegar
+la captura DataMatrix, aplica la migración de columnas de tiempo:
+
+```bash
+wrangler d1 execute limpieza-jci-db --remote --file=prisma/d1-migrations/0002-scan-times.sql
+```
+
+Para verificar la conexión real a D1 en el Worker, `GET /api/health` devuelve
+los conteos y `GET /api/reportes` los indicadores.
 
 ```bash
 npm run deploy             # build OpenNext + deploy a Cloudflare Workers

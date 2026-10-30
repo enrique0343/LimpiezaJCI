@@ -5,7 +5,7 @@ import { Shell } from "./shell";
 import { Login } from "./login";
 import { Dashboard } from "./dashboard";
 import {
-  ExecQR,
+  ExecScan,
   ExecProtocol,
   ExecInsumos,
   ExecJourney,
@@ -14,9 +14,10 @@ import {
 } from "./execution";
 import { VerifReview, VerifJourney, VerifDone } from "./verification";
 import { Trace } from "./trace";
+import { Reportes } from "./reportes";
 
 const TITLES: Record<string, string> = {
-  exec_qr: "Anclaje físico (QR)",
+  exec_qr: "Anclaje físico (DataMatrix)",
   exec_protocol: "Selección de protocolo",
   exec_insumos: "Selección de insumos",
   exec_journey: "Ejecución guiada",
@@ -26,7 +27,10 @@ const TITLES: Record<string, string> = {
   verif_journey: "Verificación",
   verif_done: "Verificación cerrada",
   trace: "Bitácora",
+  reportes: "Reportes e indicadores",
 };
+
+const WIDE = new Set(["dashboard", "reportes", "trace"]);
 
 export function AppRouter() {
   const { screen } = useApp();
@@ -38,7 +42,7 @@ export function AppRouter() {
       case "dashboard":
         return <Dashboard />;
       case "exec_qr":
-        return <ExecQR />;
+        return <ExecScan />;
       case "exec_protocol":
         return <ExecProtocol />;
       case "exec_insumos":
@@ -57,6 +61,8 @@ export function AppRouter() {
         return <VerifDone />;
       case "trace":
         return <Trace />;
+      case "reportes":
+        return <Reportes />;
       default:
         return <Dashboard />;
     }
@@ -66,6 +72,7 @@ export function AppRouter() {
     <Shell
       title={TITLES[screen] ?? "Limpieza con Trazabilidad"}
       showBack={screen !== "dashboard"}
+      wide={WIDE.has(screen)}
     >
       {body}
     </Shell>

@@ -39,6 +39,7 @@ export const PROTOCOLS: Record<ProtocolKey, Protocol> = {
     norm: "JCI PCI.04.00 · ME #1",
     desc: "Limpieza diaria de habitación ocupada. Superficies de alto contacto, baño, pisos, dispensadores.",
     estTime: "~15 min",
+    estMin: 15,
     photoReq: false,
     photoSlots: [],
     steps: [
@@ -60,6 +61,7 @@ export const PROTOCOLS: Record<ProtocolKey, Protocol> = {
     norm: "JCI PCI.04.00 · ME #1, #3",
     desc: "Limpieza exhaustiva tras alta del paciente. Habitación desocupada, retiro total, desinfección profunda.",
     estTime: "~45 min",
+    estMin: 45,
     photoReq: true,
     photoSlots: ["Baño", "Cama y mobiliario", "Área general"],
     steps: [
@@ -85,6 +87,7 @@ export const PROTOCOLS: Record<ProtocolKey, Protocol> = {
     norm: "JCI PCI.04.00 · ME #2, #3",
     desc: "Post-alta de paciente en aislamiento por enfermedad infecciosa. Protocolo reforzado con doble agente.",
     estTime: "~75 min",
+    estMin: 75,
     photoReq: true,
     photoSlots: ["Baño", "Cama y mobiliario", "Cortinas retiradas", "Área general"],
     steps: [
@@ -108,6 +111,7 @@ export const PROTOCOLS: Record<ProtocolKey, Protocol> = {
     norm: "JCI PCI.04.00 · ME #2",
     desc: "Áreas críticas. Cumple matriz de Spaulding y verificación con marcador o ATP.",
     estTime: "~60 min",
+    estMin: 60,
     photoReq: true,
     photoSlots: ["Equipos y monitores", "Superficies críticas", "Área general"],
     steps: [

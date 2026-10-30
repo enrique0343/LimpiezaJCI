@@ -23,6 +23,7 @@ import {
   StateTransitionError,
 } from "@/domain";
 import { useToast } from "@/components/ui";
+import { parseGs1 } from "./gs1";
 import {
   DEMO_PINS,
   INSUMOS,
@@ -51,7 +52,8 @@ export type Screen =
   | "verif_review"
   | "verif_journey"
   | "verif_done"
-  | "trace";
+  | "trace"
+  | "reportes";
 
 interface ExecDraft {
   roomId: string;
@@ -59,6 +61,8 @@ interface ExecDraft {
   motivo: string;
   protoKey: ProtocolKey;
   qrScannedAt: number;
+  enteredAt?: number;
+  exitedAt?: number;
   startedAt?: number;
   stepsConfirmed: { idx: number; at: number }[];
   insumos: string[];
@@ -111,9 +115,10 @@ interface AppContextValue extends AppState {
   openTrace: (roomId: string) => void;
   // execution
   beginExecution: (roomId: string) => void;
-  confirmQr: (code: string) => void;
+  confirmScanIn: (code: string) => void;
   selectProtocol: (key: ProtocolKey, justification?: string) => void;
   toggleInsumo: (gtin: string) => void;
+  scanInsumo: (code: string) => void;
   confirmInsumos: () => void;
   confirmStep: (idx: number) => void;
   addIncident: (stepIdx: number, text: string) => void;
@@ -188,6 +193,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         protocolVersion: proto.version,
         motivo: exec.motivo,
         qrScannedAt: exec.qrScannedAt,
+        enteredAt: exec.enteredAt ?? exec.startedAt ?? Date.now(),
+        exitedAt: Date.now(),
         startedAt: exec.startedAt ?? Date.now(),
         finishedAt: Date.now(),
         stepsConfirmed: exec.stepsConfirmed,
@@ -299,13 +306,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [patch],
   );
 
-  const confirmQr = useCallback(
+  const confirmScanIn = useCallback(
     (code: string) =>
       patch((s) => {
         const room = s.rooms.find((r) => r.id === s.activeRoomId);
         if (!room || !s.exec || !s.user) return s;
-        if (code.trim() !== room.qrCode) {
-          toast(`QR inválido: no corresponde a la Hab. ${room.id}.`);
+        const parsed = parseGs1(code);
+        // Door anchor is a plain code matched to the room; a GS1 location (414)
+        // could also be mapped here in production.
+        const anchor = parsed.plain ? parsed.raw : (parsed.gln ?? parsed.raw);
+        if (anchor !== room.qrCode) {
+          toast(`DataMatrix inválido: no corresponde a la Hab. ${room.id}.`);
           return s;
         }
         if (room.state !== "pendiente" && room.state !== "con_hallazgos") {
@@ -315,10 +326,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const now = Date.now();
         return {
           ...s,
-          exec: { ...s.exec, qrScannedAt: now },
+          exec: { ...s.exec, qrScannedAt: now, enteredAt: now },
           audit: log(
             s,
-            { type: "qr_scan", detail: `Escaneo QR Hab. ${room.id}`, actorId: s.user.id, roomId: room.id },
+            { type: "scan_in", detail: `Escaneo de entrada (DataMatrix) Hab. ${room.id}`, actorId: s.user.id, roomId: room.id },
             { type: "exec_open", detail: "Apertura de registro de ejecución", actorId: s.user.id, roomId: room.id },
           ),
           screen: "exec_protocol",
@@ -326,6 +337,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
       }),
     [patch, log, toast],
+  );
+
+  const scanInsumo = useCallback(
+    (code: string) =>
+      patch((s) => {
+        if (!s.exec) return s;
+        const parsed = parseGs1(code);
+        if (!parsed.gtin) {
+          toast("DataMatrix sin GTIN de insumo.");
+          return s;
+        }
+        const insumo = INSUMOS.find((i) => i.gtin === parsed.gtin);
+        if (!insumo) {
+          toast(`Insumo no reconocido (GTIN ${parsed.gtin}).`);
+          return s;
+        }
+        if (s.exec.insumos.includes(insumo.gtin)) return s;
+        return {
+          ...s,
+          exec: { ...s.exec, insumos: [...s.exec.insumos, insumo.gtin] },
+        };
+      }),
+    [patch, toast],
   );
 
   const selectProtocol = useCallback(
@@ -498,6 +532,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         protocolVersion: proto.version,
         motivo: s.exec.motivo,
         qrScannedAt: s.exec.qrScannedAt,
+        enteredAt: s.exec.enteredAt,
+        exitedAt: now, // scan-out at close
         startedAt: s.exec.startedAt,
         finishedAt: now,
         stepsConfirmed: s.exec.stepsConfirmed,
@@ -516,6 +552,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         audit: log(
           s,
           { type: "exec_finish", detail: "Cierre de ejecución", actorId: s.user.id, roomId: room.id },
+          { type: "scan_out", detail: `Escaneo de salida (DataMatrix) Hab. ${room.id}`, actorId: s.user.id, roomId: room.id },
           { type: "room_state_change", detail: "en_limpieza → pend_verificacion", actorId: s.user.id, roomId: room.id },
         ),
         screen: "exec_done",
@@ -730,9 +767,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     back,
     openTrace,
     beginExecution,
-    confirmQr,
+    confirmScanIn,
     selectProtocol,
     toggleInsumo,
+    scanInsumo,
     confirmInsumos,
     confirmStep,
     addIncident,

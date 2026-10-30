@@ -3,14 +3,16 @@
 This file provides guidance to Claude Code (and other AI assistants) when working
 with code in this repository.
 
-> **Status: Flow wired to Cloudflare D1.**
-> Next.js 15 + Cloudflare (OpenNext) builds; the domain (§9 rules) is pure +
-> tested; the Avante UI kit is built; the full flow (login → dashboard →
-> ejecución → verificación → bitácora) runs at `/`, **hydrating rooms from D1 and
-> persisting execution/verification to D1** via `/api/*` routes that re-enforce
-> §9. D1/R2/KV are provisioned. **Not yet deployed** (needs `wrangler` auth).
-> Remaining for production: real Auth.js/KV sessions, fully server-driven reads,
-> the sync layer (Queues/IndexedDB), PWA/offline, and PDF export.
+> **Status: DataMatrix capture + indicators, on Next 16.**
+> Next.js 16 + Cloudflare (OpenNext) builds; the domain (§9 rules) is pure +
+> tested; the Avante UI kit is built; the full flow runs at `/` and persists to
+> Cloudflare D1 via `/api/*`. Room entry/exit use **GS1 DataMatrix** (scan-in /
+> scan-out), supplies are captured by scanning, and a **Reportes** screen (§8.6)
+> shows derived indicators. UI is **responsive** (phone-first operator flow;
+> wider dashboard/reportes on tablet/desktop). D1/R2/KV provisioned. **Not yet
+> deployed** (needs `wrangler` auth); a pending D1 migration adds the scan-time
+> columns (`prisma/d1-migrations/0002-scan-times.sql`). Remaining: real
+> Auth.js/KV sessions, camera scanning (zxing), PWA/offline, PDF export.
 
 ## Project Overview
 
@@ -40,19 +42,23 @@ spec governs.
 ```
 .
 ├── docs/
-│   └── GO-PRY-001-2026-spec.md           # Authoritative development brief (es). SOURCE OF TRUTH.
+│   ├── GO-PRY-001-2026-spec.md           # Authoritative development brief (es). SOURCE OF TRUTH.
+│   └── mejoras-datamatrix-indicadores.md # Addendum: DataMatrix capture + indicators (amends §3.2, §8.6).
 ├── prototype/
 │   └── limpieza-trazabilidad-jci-v2.html # Single-file vanilla-JS visual + flow prototype.
 ├── prisma/
-│   └── schema.prisma                     # Domain model (§7) + data rules (§7.3).
+│   ├── schema.prisma                     # Domain model (§7) + data rules (§7.3).
+│   └── d1-migrations/                    # Hand-applied D1 SQL migrations (0002 = scan-time columns).
 ├── src/
-│   ├── app/                              # Next.js App Router. `/` = full demo flow; `/kit` = UI kit; `/api/*` = D1-backed routes.
+│   ├── app/                              # Next.js App Router. `/` = full flow; `/kit` = UI kit; `/api/*` = D1-backed routes (incl. reportes).
 │   ├── components/
 │   │   ├── ui/                           # Avante UI kit (§10.4): Button, Card, StatePill, Badge, StepBlock, Stepper, Timer, Modal, PhotoSlot, Toast.
-│   │   └── screens/                      # Operational screens: shell, login, dashboard, execution, verification, trace, router.
+│   │   └── screens/                      # Screens: shell, login, dashboard, execution, verification, trace, reportes, router.
 │   ├── domain/                           # Pure, framework-free §9 rules (state machine, role sep, audit, decisions).
 │   └── lib/
 │       ├── cn.ts                         # className joiner.
+│       ├── gs1.ts                        # Pure GS1 DataMatrix parser (room anchor + supply GTIN/lot).
+│       ├── metrics.ts                    # Pure indicator computation (§8.6), tested.
 │       ├── db.ts                         # PrismaClient over Cloudflare D1 (per-request, workerd).
 │       ├── repo.ts                        # Server data access: D1 queries/mutations + §9 enforcement + audit writes.
 │       ├── map.ts                         # Pure D1↔client mappers + audit-event builders (tested).
@@ -62,7 +68,7 @@ spec governs.
 │       └── store.tsx                     # Client AppProvider: flow state + §9 enforcement; hydrates from /api, persists writes.
 ├── tests/
 │   ├── domain/                           # Vitest unit tests for src/domain (spec §14: ≥80% coverage).
-│   └── lib/                              # Vitest unit tests for pure lib helpers (map.ts audit builders).
+│   └── lib/                              # Vitest unit tests for pure lib helpers (gs1, metrics, map).
 ├── public/                               # Static assets.
 ├── next.config.ts                        # Next config + initOpenNextCloudflareForDev().
 ├── open-next.config.ts                   # OpenNext (Cloudflare) adapter config.
@@ -129,8 +135,8 @@ tests, once they exist) and ensure they pass.
 **Platform decision (per spec §18.4, confirm with Edwin Martínez):** the app
 targets **Cloudflare** for deployment. This supersedes the brief's original
 self-hosted/Docker recommendation — see the **data-residency caveat** below.
-The **baseline is installed** (Next.js 15.5 pinned for OpenNext compatibility,
-Tailwind v4, Prisma); the items below describe what's wired vs. still to add.
+The **baseline is installed** (Next.js 16, Tailwind v4, Prisma); the items
+below describe what's wired vs. still to add.
 
 - **App / framework:** **Next.js 15** (App Router) + **strict TypeScript**,
   deployed to **Cloudflare Workers** via the **OpenNext adapter**
@@ -156,8 +162,9 @@ Tailwind v4, Prisma); the items below describe what's wired vs. still to add.
 - **Photos:** store in **Cloudflare R2** (S3-compatible). **`sharp` does NOT run
   on Workers** — resize/optimize with **Cloudflare Images** or compress
   client-side before upload.
-- **QR:** `html5-qrcode`/`@zxing/browser` (scan) + `qrcode` (generation) —
-  client-side, unchanged.
+- **Capture:** **GS1 DataMatrix** at room entry/exit (scan-in / scan-out) and
+  for supplies. Parser in `src/lib/gs1.ts`; keyboard-wedge or `@zxing/browser`
+  camera (progressive enhancement); `qrcode`/DataMatrix generation for labels.
 - **Async / scheduled:** **Cloudflare Queues** for sync/conflict handling and
   notification fan-out; **Cron Triggers** for daily KPI summaries.
 - **Tooling:** **Wrangler** for config/bindings/deploy. `wrangler dev` /
@@ -242,7 +249,7 @@ soft-delete (`deletedAt`) for Room and User — never hard-delete.
 ## Acceptance Criteria & Seed Data
 
 The v1 acceptance criteria are in spec §14 (full terminal-cleaning flow offline,
-enforced role separation, ≥15 audit events per cycle, QR rejection of invalid
+enforced role separation, ≥15 audit events per cycle, DataMatrix rejection of invalid
 codes, PCI-only release for high-risk rooms, PDF audit export, installable PWA,
 ≥80% domain test coverage, Lighthouse PWA ≥90). Seed data for demos is in §15.
 Scope boundaries (in/out of v1, v2 roadmap) are in §13.
@@ -262,8 +269,8 @@ Scope boundaries (in/out of v1, v2 roadmap) are in §13.
 - **Don't weaken the §9 business rules** to make something easier — they are the
   whole point of the system. If a rule blocks you, surface it; don't bypass it.
 - **Don't invent files, frameworks, or commands.** Verify the current state
-  before referencing it. **Next is pinned to 15.x** for OpenNext/Workers
-  compatibility — do not bump to 16 without verifying adapter support.
+  before referencing it. **Next is on 16.x** (Next 15 aged out of OpenNext's
+  supported window Oct 2026); the OpenNext adapter 1.19+ requires it.
 - When you add tooling or change structure, **update this file (and `README.md`)
   in the same change** so they always reflect reality.
 - Prefer conventions already present in the prototype and spec over introducing

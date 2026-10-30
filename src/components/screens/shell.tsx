@@ -6,21 +6,26 @@ import { useApp } from "@/lib/store";
 import { ROLE_LABEL } from "@/lib/seed";
 
 // App chrome: dark top bar (prototype .topbar) + user strip (.userstrip).
+// `wide` widens the container on tablet/desktop for supervisor/management views
+// (dashboard, reportes); operator flow screens stay phone-width and centered.
 export function Shell({
   title = "Limpieza con Trazabilidad",
   subtitle = "JCI PCI.04.00 · 8ª edición",
   showBack = false,
+  wide = false,
   children,
 }: {
   title?: string;
   subtitle?: string;
   showBack?: boolean;
+  wide?: boolean;
   children: ReactNode;
 }) {
   const { user, back, logout } = useApp();
+  const width = wide ? "max-w-[480px] md:max-w-3xl lg:max-w-5xl" : "max-w-[480px]";
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[480px] flex-col bg-gris-bg">
+    <div className={`mx-auto flex min-h-screen w-full flex-col bg-gris-bg ${width}`}>
       <header className="sticky top-0 z-30 flex items-center gap-[10px] bg-negro px-4 py-3 text-white">
         {showBack && (
           <button

@@ -12,6 +12,8 @@ export interface DbExecRow {
   protocolVersion: string;
   motivo: string;
   qrScannedAt: Date;
+  enteredAt: Date | null;
+  exitedAt: Date | null;
   startedAt: Date;
   finishedAt: Date | null;
   stepsConfirmed: unknown;
@@ -87,6 +89,8 @@ export function dbRoomToClient(row: DbRoomRow): Room {
           protocolVersion: exec.protocolVersion,
           motivo: exec.motivo,
           qrScannedAt: exec.qrScannedAt.getTime(),
+          enteredAt: exec.enteredAt ? exec.enteredAt.getTime() : undefined,
+          exitedAt: exec.exitedAt ? exec.exitedAt.getTime() : undefined,
           startedAt: exec.startedAt.getTime(),
           finishedAt: exec.finishedAt ? exec.finishedAt.getTime() : undefined,
           stepsConfirmed: asArray(exec.stepsConfirmed),

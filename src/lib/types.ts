@@ -21,6 +21,8 @@ export interface Protocol {
   norm: string;
   desc: string;
   estTime: string;
+  /** Estimated minutes (numeric benchmark for metrics §8.6). */
+  estMin: number;
   photoReq: boolean;
   photoSlots: string[];
   steps: string[];
@@ -64,6 +66,10 @@ export interface ExecRecord {
   protocolVersion: string;
   motivo: string;
   qrScannedAt: number;
+  /** Room-entry scan time (DataMatrix scan-in). */
+  enteredAt?: number;
+  /** Room-exit scan time (DataMatrix scan-out). */
+  exitedAt?: number;
   startedAt: number;
   finishedAt?: number;
   stepsConfirmed: StepConfirm[];

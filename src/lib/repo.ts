@@ -53,6 +53,8 @@ export interface PersistExecutionInput {
   protocolVersion: string;
   motivo: string;
   qrScannedAt: number;
+  enteredAt?: number;
+  exitedAt?: number;
   startedAt: number;
   finishedAt: number;
   stepsConfirmed: { idx: number; at: number }[];
@@ -76,6 +78,8 @@ export async function persistExecution(input: PersistExecutionInput) {
         protocolVersion: input.protocolVersion,
         motivo: input.motivo,
         qrScannedAt: new Date(input.qrScannedAt),
+        enteredAt: input.enteredAt ? new Date(input.enteredAt) : null,
+        exitedAt: input.exitedAt ? new Date(input.exitedAt) : null,
         startedAt: new Date(input.startedAt),
         finishedAt: new Date(input.finishedAt),
         stepsConfirmed: input.stepsConfirmed,

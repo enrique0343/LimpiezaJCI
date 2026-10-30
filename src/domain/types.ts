@@ -19,6 +19,8 @@ export type AuditEventType =
   | "login"
   | "logout"
   | "exec_open"
+  | "scan_in"
+  | "scan_out"
   | "qr_scan"
   | "protocol_selected"
   | "insumos_selected"

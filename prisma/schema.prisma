@@ -95,6 +95,8 @@ model ExecutionRecord {
   protocolVersion String // frozen at execution start (spec §9.5) — immutable
   motivo          String
   qrScannedAt     DateTime
+  enteredAt       DateTime? // DataMatrix scan-in (room entry)
+  exitedAt        DateTime? // DataMatrix scan-out (room exit)
   startedAt       DateTime  @default(now())
   finishedAt      DateTime?
   stepsConfirmed  Json // [{ idx, at }]

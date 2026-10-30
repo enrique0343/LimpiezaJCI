@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, History } from "lucide-react";
+import { ArrowRight, History, BarChart3 } from "lucide-react";
 import { useApp, PROTOCOLS } from "@/lib/store";
 import type { Room } from "@/lib/types";
 import type { RoomState } from "@/domain/types";
@@ -28,7 +28,7 @@ function visibleRooms(rooms: Room[], role: string): Room[] {
 }
 
 export function Dashboard() {
-  const { user, rooms, beginExecution, beginVerification, openTrace } = useApp();
+  const { user, rooms, beginExecution, beginVerification, openTrace, nav } = useApp();
   if (!user) return null;
 
   const counts = PIPELINE.map((p) => ({
@@ -40,14 +40,25 @@ export function Dashboard() {
   return (
     <>
       <section className="mb-4 rounded-[4px] border border-gris-cl bg-white p-3">
-        <p className="mb-[10px] text-[10px] uppercase tracking-[0.07em] text-gris-med">
-          Estado de habitaciones
-        </p>
-        <div className="flex gap-[6px] overflow-x-auto">
+        <div className="mb-[10px] flex items-center">
+          <p className="text-[10px] uppercase tracking-[0.07em] text-gris-med">
+            Estado de habitaciones
+          </p>
+          {user.role !== "operador" && (
+            <button
+              type="button"
+              onClick={() => nav("reportes")}
+              className="ml-auto flex items-center gap-1 rounded-[4px] border border-gris-cl px-2 py-1 text-[11px] font-bold text-azul-marino active:scale-95"
+            >
+              <BarChart3 className="size-[14px]" aria-hidden /> Reportes
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-[6px] sm:grid-cols-5">
           {counts.map((c) => (
             <div
               key={c.state}
-              className="min-w-20 flex-1 rounded-[4px] border border-gris-cl bg-gris-bg p-2 text-center"
+              className="rounded-[4px] border border-gris-cl bg-gris-bg p-2 text-center"
             >
               <div className="text-lg font-bold leading-none text-negro">{c.n}</div>
               <div className="mt-[5px] text-[9.5px] uppercase tracking-[0.04em] text-gris-med">
@@ -68,7 +79,7 @@ export function Dashboard() {
         </p>
       )}
 
-      <div className="flex flex-col gap-[10px]">
+      <div className="grid gap-[10px] md:grid-cols-2 lg:grid-cols-3">
         {list.map((room) => {
           const proto = room.suggestedProto && PROTOCOLS[room.suggestedProto];
           const canOperate =

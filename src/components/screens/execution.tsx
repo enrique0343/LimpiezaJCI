@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  QrCode,
+  Grid2x2,
   ScanLine,
   Check,
   Camera,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useApp, PROTOCOLS, INSUMOS } from "@/lib/store";
 import type { ProtocolKey } from "@/domain/types";
+import { gs1Supply } from "@/lib/gs1";
 import {
   Button,
   Card,
@@ -24,7 +25,7 @@ import {
 import { ActionBar } from "./shell";
 import { fmtTime } from "@/lib/format";
 
-const EXEC_STEPS = ["QR", "Protocolo", "Insumos", "Ejecución", "Fotos", "Cierre"];
+const EXEC_STEPS = ["Entrada", "Protocolo", "Insumos", "Ejecución", "Fotos", "Cierre"];
 
 function StepperHead({ current }: { current: number }) {
   return (
@@ -34,25 +35,36 @@ function StepperHead({ current }: { current: number }) {
   );
 }
 
-export function ExecQR() {
-  const { activeRoom, confirmQr } = useApp();
+export function ExecScan() {
+  const { activeRoom, confirmScanIn } = useApp();
+  const [manual, setManual] = useState("");
   if (!activeRoom) return null;
   return (
     <>
       <StepperHead current={0} />
       <p className="mb-4 text-[12.5px] leading-relaxed text-gris-med">
-        Escanea el código QR de la <b className="text-gris">Hab. {activeRoom.id}</b>{" "}
-        para anclar el registro <i>in situ</i> e iniciar el cronómetro.
+        Escanea el <b className="text-gris">DataMatrix</b> de la puerta de la{" "}
+        <b className="text-gris">Hab. {activeRoom.id}</b> para anclar el registro{" "}
+        <i>in situ</i> y marcar la hora de entrada.
       </p>
-      <div className="relative mx-auto mb-6 aspect-square max-w-[280px] overflow-hidden rounded-lg bg-black">
-        <QrCode className="absolute inset-0 m-auto size-24 text-white/20" aria-hidden />
+      <div className="relative mx-auto mb-6 aspect-square w-full max-w-[280px] overflow-hidden rounded-lg bg-black">
+        <Grid2x2 className="absolute inset-0 m-auto size-24 text-white/20" aria-hidden />
         <div className="absolute inset-x-[8%] top-1/2 h-0.5 animate-pulse bg-verde" />
       </div>
-      <p className="text-center text-[13px] text-gris">
-        Apunta la cámara al QR en el marco de la puerta.
+      <p className="mb-3 text-center text-[13px] text-gris">
+        Apunta la cámara al DataMatrix en el marco de la puerta.
       </p>
+      <div className="mx-auto max-w-[280px]">
+        <input
+          value={manual}
+          onChange={(e) => setManual(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && manual && confirmScanIn(manual)}
+          placeholder="…o lector físico / código manual"
+          className="w-full rounded-[4px] border border-gris-cl px-3 py-2 text-center text-[13px] outline-none focus:border-gris"
+        />
+      </div>
       <ActionBar>
-        <Button onClick={() => confirmQr(activeRoom.qrCode)}>
+        <Button onClick={() => confirmScanIn(activeRoom.qrCode)}>
           <ScanLine /> Simular escaneo
         </Button>
       </ActionBar>
@@ -137,40 +149,79 @@ export function ExecProtocol() {
 }
 
 export function ExecInsumos() {
-  const { exec, toggleInsumo, confirmInsumos } = useApp();
+  const { exec, toggleInsumo, scanInsumo, confirmInsumos } = useApp();
+  const [manual, setManual] = useState("");
   if (!exec) return null;
   return (
     <>
       <StepperHead current={2} />
       <p className="mb-3 text-[12.5px] leading-relaxed text-gris-med">
-        Selecciona los insumos utilizados. Quedan atados al registro con su GTIN y
-        lote para trazabilidad. Debe incluir al menos un desinfectante.
+        <b className="text-gris">Escanea el DataMatrix</b> de cada envase: el GTIN y
+        lote se capturan solos. También puedes marcarlos a mano. Debe incluir al
+        menos un desinfectante.
       </p>
+      <div className="mb-3 flex gap-2">
+        <input
+          value={manual}
+          onChange={(e) => setManual(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && manual) {
+              scanInsumo(manual);
+              setManual("");
+            }
+          }}
+          placeholder="Escanear envase (lector / DataMatrix)…"
+          className="min-w-0 flex-1 rounded-[4px] border border-gris-cl px-3 py-2 text-[13px] outline-none focus:border-gris"
+        />
+        <Button
+          variant="ghost"
+          onClick={() => {
+            if (manual) {
+              scanInsumo(manual);
+              setManual("");
+            }
+          }}
+        >
+          <ScanLine /> Escanear
+        </Button>
+      </div>
       {INSUMOS.map((i) => {
         const isSel = exec.insumos.includes(i.gtin);
         return (
-          <button
+          <div
             key={i.gtin}
-            type="button"
-            onClick={() => toggleInsumo(i.gtin)}
-            className={`mb-2 flex w-full items-center gap-[11px] rounded-[4px] border bg-white p-[11px] text-left ${
+            className={`mb-2 flex items-center gap-[11px] rounded-[4px] border bg-white p-[11px] ${
               isSel ? "border-negro bg-gris-bg2" : "border-gris-cl"
             }`}
           >
-            <span
-              className={`flex size-[18px] flex-none items-center justify-center rounded-[3px] border-[1.5px] ${
-                isSel ? "border-negro bg-negro" : "border-gris-cl"
-              }`}
+            <button
+              type="button"
+              onClick={() => toggleInsumo(i.gtin)}
+              className="flex min-w-0 flex-1 items-center gap-[11px] text-left"
             >
-              {isSel && <Check className="size-3 text-white" aria-hidden />}
-            </span>
-            <span>
-              <span className="block text-[13px] font-bold">{i.name}</span>
-              <span className="mt-0.5 block text-[10.5px] text-gris-med">
-                GTIN {i.gtin} · Lote {i.lot} · {i.dil}
+              <span
+                className={`flex size-[18px] flex-none items-center justify-center rounded-[3px] border-[1.5px] ${
+                  isSel ? "border-negro bg-negro" : "border-gris-cl"
+                }`}
+              >
+                {isSel && <Check className="size-3 text-white" aria-hidden />}
               </span>
-            </span>
-          </button>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-bold">{i.name}</span>
+                <span className="mt-0.5 block text-[10.5px] text-gris-med">
+                  GTIN {i.gtin} · Lote {i.lot} · {i.dil}
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              aria-label={`Simular escaneo de ${i.name}`}
+              onClick={() => scanInsumo(gs1Supply(i.gtin, i.lot))}
+              className="flex-none rounded-[4px] border border-gris-cl p-2 text-gris-med active:scale-95"
+            >
+              <ScanLine className="size-4" aria-hidden />
+            </button>
+          </div>
         );
       })}
       <ActionBar>
@@ -315,7 +366,7 @@ export function ExecPhotos() {
       </Card>
       <ActionBar>
         <Button onClick={finishExecution}>
-          <CircleCheckBig /> Finalizar ejecución
+          <ScanLine /> Escanear salida y finalizar
         </Button>
       </ActionBar>
     </>
@@ -330,8 +381,9 @@ export function ExecDone() {
         <CircleCheckBig className="size-14 text-verde" aria-hidden />
         <h2 className="text-lg font-bold text-azul-marino">Ejecución cerrada</h2>
         <p className="max-w-xs text-[13px] text-gris">
-          La Hab. {activeRoom?.id} pasó a <b>pendiente de verificación</b>. Un
-          supervisor o PCI (distinto del operador) debe validarla.
+          Salida registrada por escaneo. La Hab. {activeRoom?.id} pasó a{" "}
+          <b>pendiente de verificación</b>; un supervisor o PCI (distinto del
+          operador) debe validarla.
         </p>
       </div>
       <ActionBar>

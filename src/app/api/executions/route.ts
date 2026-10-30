@@ -11,6 +11,8 @@ const schema = z.object({
   protocolVersion: z.string(),
   motivo: z.string(),
   qrScannedAt: z.number(),
+  enteredAt: z.number().optional(),
+  exitedAt: z.number().optional(),
   startedAt: z.number(),
   finishedAt: z.number(),
   stepsConfirmed: z.array(z.object({ idx: z.number(), at: z.number() })),
